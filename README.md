@@ -84,7 +84,49 @@ messages/          # UI 문자열 사전 — 소스는 ko.json, 타 로케일은
 drizzle/           # 생성된 SQL 마이그레이션
 ```
 
-## 개발 단계 (Launch 슬라이스)
+## 로드맵 — Launch 슬라이스 액션 아이템
 
-Phase 1 기반 → 2 버블맵 → 3 Tier 2 수집 → 4 상세 페이지/SEO → 5 마감.
-각 Phase 완료 시마다 프로덕션 배포. 상세 기준은 [CLAUDE.md](./CLAUDE.md) 6번 참조.
+각 Phase 완료 시마다 프로덕션 배포. 상세 기준·제약은 [CLAUDE.md](./CLAUDE.md) 6번이 기준이며,
+Phase별 세부 체크리스트는 GitHub 이슈로 추적한다.
+
+### Phase 1 — 기반 ([#1](https://github.com/ZunaTtang/steambubbles/issues/1)) 🔄 진행 중
+
+- [x] Next.js 15 + next-intl 구조 (Launch 오픈은 `/ko`만)
+- [x] Neon/Drizzle 스키마 + 초기 마이그레이션
+- [ ] 공통 fetch 유틸 (지수 백오프 + 서킷브레이커 + 지터)
+- [ ] `/api/cron/players-tier1` 10분 주기 수집 + `job_runs` 기록 + QStash 스케줄
+- [ ] 데드맨스위치 헬스체크 → Discord 웹훅 알림
+
+**완료 기준**: top 100 스냅샷 10분 주기 자동 적재 + 수집 중단 시 Discord 알림 수신 확인
+
+### Phase 2 — 버블맵 + 랭킹 테이블 ([#2](https://github.com/ZunaTtang/steambubbles/issues/2))
+
+- [ ] d3-force + PixiJS 버블맵 (cryptobubbles 문법, 색상 콜드스타트 폴백)
+- [ ] 가격·평점 수집 크론 (1.6초 스로틀) → 할인 링 + 상세 모달
+- [ ] 범위/장르/기간 필터 · 검색 · 즐겨찾기 · 통화 전환(쿠키)
+- [ ] 랭킹 테이블 / 모바일 대응 / 300 노드 60fps
+
+**완료 시 바이럴 테스트 1회** (캡처 이미지 커뮤니티 게시)
+
+### Phase 3 — Tier 2 수집 ([#3](https://github.com/ZunaTtang/steambubbles/issues/3))
+
+- [ ] `GetGamesByConcurrentPlayers` 실테스트 → 결과 CLAUDE.md에 기록
+- [ ] 폴링 유니버스 구축 + Tier 2 30분 폴링 (배치 분할 + QStash 체이닝)
+- [ ] 티어 재배정(일 1회) + 롤업/보존 잡
+
+### Phase 4 — 상세 페이지 + SEO ([#4](https://github.com/ZunaTtang/steambubbles/issues/4))
+
+- [ ] `/[locale]/game/[id]` 상세 페이지 (로케일별 자연문 자동 생성)
+- [ ] Tier 1~2 사전 생성 + on-demand ISR
+- [ ] ko hreflang·sitemap, 애드센스 신청 준비
+
+### Phase 5 — 마감 ([#5](https://github.com/ZunaTtang/steambubbles/issues/5))
+
+- [ ] snapdom 캡처 + 워터마크 / `/[locale]/og` 동적 OG 이미지
+- [ ] Vercel Analytics
+- [ ] 우아한 강등 동작 검증 (store API 장애 시 가격 UI 숨김, 동접 정상)
+
+### 후행 (동결 백로그 — 트리거 전 착공 금지)
+
+Tier 3 오픈, ja/zh 로케일, en SEO, 세일 감지 트리거, 수익화 전체.
+해제 트리거는 [CLAUDE.md](./CLAUDE.md) 8번 참조.
