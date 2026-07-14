@@ -1,0 +1,23 @@
+{
+  "site": {
+    "title": "Steam Player Bubbles",
+    "description": "Live Steam concurrent players and discounts at a glance in a bubble map — a discovery tool combining popularity and purchase signals"
+  },
+  "home": {
+    "heading": "Steam Player Bubbles",
+    "tagline": "A Steam game discovery tool combining concurrent players (popularity) and discounts (purchase signal)",
+    "status": "Phase 1 — building the foundation"
+  },
+  "reviewScore": {
+    "0": "No reviews",
+    "1": "Overwhelmingly Negative",
+    "2": "Very Negative",
+    "3": "Negative",
+    "4": "Mostly Negative",
+    "5": "Mixed",
+    "6": "Mostly Positive",
+    "7": "Positive",
+    "8": "Very Positive",
+    "9": "Overwhelmingly Positive"
+  }
+}
