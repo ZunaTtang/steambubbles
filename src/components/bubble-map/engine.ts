@@ -25,8 +25,9 @@ export interface EngineUpdate {
   sizeBy: SizeBy;
   colorBy: ColorBy;
   showName: boolean;
-  showChange: boolean;
+  showChange: boolean; // 동접 수·순위 표시 토글
   onSelect: (game: GameBubbleData) => void;
+  onHover?: (game: GameBubbleData | null) => void; // hover 툴팁용 (null = 벗어남)
 }
 
 function metricOf(game: GameBubbleData, sizeBy: SizeBy): number {
@@ -220,6 +221,7 @@ export class BubbleEngine {
       showName,
       showChange,
       this.handleTap,
+      this.handleHover,
     );
     this.world.addChild(node.container);
     this.nodes.set(game.appid, node);
@@ -280,6 +282,18 @@ export class BubbleEngine {
   private readonly handleTap = (game: GameBubbleData): void => {
     if (this.didPan) return;
     this.opts?.onSelect(game);
+  };
+
+  // hover 진입/이탈 → React 툴팁에 통지. 이탈은 현재 hover 대상일 때만 (over(B)→out(A) 순서 방어)
+  private hoverGame: GameBubbleData | null = null;
+  private readonly handleHover = (game: GameBubbleData, hovered: boolean): void => {
+    if (hovered) {
+      this.hoverGame = game;
+      this.opts?.onHover?.(game);
+    } else if (this.hoverGame === game) {
+      this.hoverGame = null;
+      this.opts?.onHover?.(null);
+    }
   };
 
   // 화면 좌표 → 월드 좌표 (팬/줌 반영)

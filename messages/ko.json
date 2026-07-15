@@ -89,7 +89,8 @@
     "mockBadge": "목업 데이터 모드",
     "updatedAt": "업데이트: {time}",
     "free": "무료",
-    "loading": "불러오는 중..."
+    "loading": "불러오는 중...",
+    "marketShare": "점유율"
   },
   "reviewScore": {
     "0": "평가 없음",

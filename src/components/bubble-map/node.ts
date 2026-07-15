@@ -5,8 +5,9 @@ import { formatPlayers } from "@/lib/format";
 import { COLOR_DISCOUNT, FILL_ALPHA } from "./colors";
 import {
   HOVER_SCALE,
-  LOD_CHANGE_MIN_R,
+  LOD_COUNT_MIN_R,
   LOD_NAME_MIN_R,
+  LOD_RANK_MIN_R,
   RADIUS_LERP,
 } from "./constants";
 
@@ -25,6 +26,7 @@ const TEXT_SHADOW = {
   distance: 1,
   angle: Math.PI / 2,
 };
+const RANK_FILL = 0xa7b4c4; // 순위는 흐린 회색 (동접 수보다 덜 강조)
 
 // 반경 대비 글자수(~r/4)로 자르고 말줄임
 function abbreviate(name: string, r: number): string {
@@ -34,6 +36,20 @@ function abbreviate(name: string, r: number): string {
 
 function clampInt(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, Math.round(v)));
+}
+
+// 텍스트 줄 수(0~3)별 아트 크기·위치 + 각 줄 y (모두 r 배수). 작은 버블 가독성 우선.
+const LAYOUT: Record<number, { artD: number; artY: number; lineYs: number[] }> = {
+  0: { artD: 1, artY: 0, lineYs: [] },
+  1: { artD: 0.9, artY: -0.25, lineYs: [0.46] },
+  2: { artD: 0.78, artY: -0.42, lineYs: [0.16, 0.46] },
+  3: { artD: 0.66, artY: -0.5, lineYs: [0.06, 0.3, 0.54] },
+};
+
+interface TextLine {
+  obj: Text | null;
+  shown: string;
+  fs: number;
 }
 
 interface Badge {
@@ -52,22 +68,19 @@ export class BubbleNode {
   private readonly gfx: Graphics;
   private readonly hit: Circle;
   private art: Sprite | null = null;
-  private nameText: Text | null = null;
-  private changeText: Text | null = null;
+  // 버블 내용물 3줄: 이름 / 현재 동접 수 / 순위 (점유율은 hover·상세에서만)
+  private nameLine: TextLine = { obj: null, shown: "", fs: 0 };
+  private countLine: TextLine = { obj: null, shown: "", fs: 0 };
+  private rankLine: TextLine = { obj: null, shown: "", fs: 0 };
   private badge: Badge | null = null;
 
   private r: number; // 시각 반경 (sim.targetR로 lerp)
   private color: number;
   private optShowName: boolean;
-  private optShowChange: boolean;
+  private optShowStats: boolean; // 동접 수·순위 표시 토글
   private hovered = false;
   private gfxDirty = true;
   private dead = false;
-  // Text 재래스터 방지 캐시
-  private nameShown = "";
-  private nameFs = 0;
-  private changeShown = "";
-  private changeFs = 0;
 
   constructor(
     game: GameBubbleData,
@@ -76,15 +89,16 @@ export class BubbleNode {
     targetR: number,
     color: number,
     showName: boolean,
-    showChange: boolean,
+    showStats: boolean,
     onTap: (game: GameBubbleData) => void,
+    onHover: (game: GameBubbleData, hovered: boolean) => void,
   ) {
     this.game = game;
     this.sim = { appid: game.appid, targetR, x, y, vx: 0, vy: 0 };
     this.r = Math.max(4, targetR * 0.3); // 등장 애니메이션 시작 반경
     this.color = color;
     this.optShowName = showName;
-    this.optShowChange = showChange;
+    this.optShowStats = showStats;
 
     this.container = new Container();
     this.container.position.set(x, y);
@@ -94,11 +108,17 @@ export class BubbleNode {
     this.hit = new Circle(0, 0, this.r);
     this.container.hitArea = this.hit;
     // dynamic: 커서가 멈춰 있어도 버블이 요동으로 커서 밑을 드나들 때 hover 동기화 (CLAUDE.md 5-1 상시 유동)
-    // 탭=선택(Pixi pointertap, 검증됨) / 드래그=버블 이동(엔진 네이티브 포인터)로 분리
+    // 탭=선택(Pixi pointertap) / 드래그=버블 이동(엔진 네이티브) / hover=툴팁(엔진→React) 분리
     this.container.eventMode = "dynamic";
     this.container.cursor = "pointer";
-    this.container.on("pointerover", () => this.setHovered(true));
-    this.container.on("pointerout", () => this.setHovered(false));
+    this.container.on("pointerover", () => {
+      this.setHovered(true);
+      onHover(this.game, true);
+    });
+    this.container.on("pointerout", () => {
+      this.setHovered(false);
+      onHover(this.game, false);
+    });
     this.container.on("pointertap", () => onTap(this.game));
 
     this.updateBadge();
@@ -118,7 +138,7 @@ export class BubbleNode {
     game: GameBubbleData,
     color: number,
     showName: boolean,
-    showChange: boolean,
+    showStats: boolean,
   ): void {
     const prev = this.game;
     const prevDiscount = prev.price?.discountPct ?? 0;
@@ -127,17 +147,17 @@ export class BubbleNode {
     if (
       color !== this.color ||
       showName !== this.optShowName ||
-      showChange !== this.optShowChange ||
+      showStats !== this.optShowStats ||
       game.name !== prev.name ||
       game.players !== prev.players ||
-      game.sharePct !== prev.sharePct ||
+      game.rank !== prev.rank ||
       nextDiscount !== prevDiscount
     ) {
       this.gfxDirty = true;
     }
     this.color = color;
     this.optShowName = showName;
-    this.optShowChange = showChange;
+    this.optShowStats = showStats;
     if (nextDiscount !== prevDiscount) this.updateBadge();
   }
 
@@ -218,82 +238,81 @@ export class BubbleNode {
     }
     this.hit.radius = Math.max(r + (discount > 0 ? 3 : 0), 6);
 
-    // ── LOD: r 크기·설정에 따른 내용물 (CLAUDE.md 5-1) ──
+    // ── LOD: 이름 / 현재 동접 수 / 순위 (점유율은 버블에 표시하지 않음) ──
     const showName = this.optShowName && r >= LOD_NAME_MIN_R;
-    const showChange = this.optShowChange && r >= LOD_CHANGE_MIN_R;
+    const showCount = this.optShowStats && r >= LOD_COUNT_MIN_R;
+    const showRank = this.optShowStats && r >= LOD_RANK_MIN_R;
 
-    // 아트 배치 — 텍스트 유무에 따라 상단 배치, 없으면 버블 전체 채움
-    let artD: number;
-    let artY: number;
-    if (showName && showChange) {
-      artD = r * 0.9;
-      artY = -r * 0.42;
-    } else if (showName) {
-      artD = r * 0.95;
-      artY = -r * 0.35;
-    } else if (showChange) {
-      artD = r;
-      artY = -r * 0.32;
-    } else {
-      artD = Math.max((r - 1.5) * 2, 4);
-      artY = 0;
+    // 표시할 줄을 위→아래 순으로 수집 (이름 → 동접 → 순위)
+    const lines: {
+      line: TextLine;
+      text: string;
+      fs: number;
+      fill: number;
+    }[] = [];
+    if (showName) {
+      lines.push({
+        line: this.nameLine,
+        text: abbreviate(this.game.name, r),
+        fs: clampInt(r * 0.2, 9, 18),
+        fill: 0xffffff,
+      });
     }
+    if (showCount) {
+      lines.push({
+        line: this.countLine,
+        text: formatPlayers(this.game.players), // 핵심 숫자
+        fs: clampInt(r * 0.28, 10, 22),
+        fill: 0xffffff,
+      });
+    }
+    if (showRank) {
+      lines.push({
+        line: this.rankLine,
+        text: `#${this.game.rank}`,
+        fs: clampInt(r * 0.18, 8, 15),
+        fill: RANK_FILL,
+      });
+    }
+
+    const layout = LAYOUT[lines.length];
+    // 아트 배치
     if (this.art) {
+      const artD = lines.length === 0 ? Math.max((r - 1.5) * 2, 4) : r * layout.artD;
       this.art.width = artD;
       this.art.height = artD;
-      this.art.position.set(0, artY);
+      this.art.position.set(0, r * layout.artY);
     }
 
-    if (showName) {
-      const label = abbreviate(this.game.name, r);
-      const fs = clampInt(r * 0.24, 9, 20);
-      if (!this.nameText) this.nameText = this.makeText();
-      const t = this.nameText;
-      if (this.nameShown !== label) {
-        t.text = label;
-        this.nameShown = label;
+    // 텍스트 줄 배치 (없는 줄은 숨김)
+    const allLines = [this.nameLine, this.countLine, this.rankLine];
+    for (const tl of allLines) if (tl.obj) tl.obj.visible = false;
+    lines.forEach((spec, i) => {
+      const tl = spec.line;
+      if (!tl.obj) tl.obj = this.makeText(spec.fill);
+      if (tl.shown !== spec.text) {
+        tl.obj.text = spec.text;
+        tl.shown = spec.text;
       }
-      if (this.nameFs !== fs) {
-        t.style.fontSize = fs;
-        this.nameFs = fs;
+      if (tl.fs !== spec.fs) {
+        tl.obj.style.fontSize = spec.fs;
+        tl.fs = spec.fs;
       }
-      t.position.set(0, r * (showChange ? 0.18 : 0.42));
-      t.visible = true;
-    } else if (this.nameText) {
-      this.nameText.visible = false;
-    }
-
-    if (showChange) {
-      // 증감% 대신 현재 동접 수 + 전체 동접 중 점유율(보는맛 있는 지표)
-      const label = `${formatPlayers(this.game.players)} · ${this.game.sharePct.toFixed(1)}%`;
-      const fs = clampInt(r * 0.2, 8, 16);
-      if (!this.changeText) this.changeText = this.makeText();
-      const t = this.changeText;
-      if (this.changeShown !== label) {
-        t.text = label;
-        this.changeShown = label;
-      }
-      if (this.changeFs !== fs) {
-        t.style.fontSize = fs;
-        this.changeFs = fs;
-      }
-      t.position.set(0, r * (showName ? 0.58 : 0.5));
-      t.visible = true;
-    } else if (this.changeText) {
-      this.changeText.visible = false;
-    }
+      tl.obj.position.set(0, r * layout.lineYs[i]);
+      tl.obj.visible = true;
+    });
 
     if (this.badge) this.badge.root.position.set(0, -(r + 12));
   }
 
-  private makeText(): Text {
+  private makeText(fill: number): Text {
     const t = new Text({
       text: "",
       style: {
         fontFamily: FONT_STACK,
         fontSize: 10,
         fontWeight: "600",
-        fill: 0xffffff,
+        fill,
         dropShadow: TEXT_SHADOW,
       },
     });

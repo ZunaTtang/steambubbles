@@ -89,7 +89,8 @@
     "mockBadge": "Mock data mode",
     "updatedAt": "Updated: {time}",
     "free": "Free",
-    "loading": "Loading..."
+    "loading": "Loading...",
+    "marketShare": "Steam Share"
   },
   "reviewScore": {
     "0": "No reviews",

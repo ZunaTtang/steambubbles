@@ -27,3 +27,8 @@ export function formatChangePct(pct: number): string {
   const sign = pct > 0 ? "+" : "";
   return `${sign}${pct.toFixed(1)}%`;
 }
+
+// 점유율 — 큰 값은 1자리, 작은 값(하위 랭킹)은 3자리로 의미 있는 정밀도 유지 (예: 12.8% / 0.013%)
+export function formatSharePct(pct: number): string {
+  return `${pct >= 1 ? pct.toFixed(1) : pct.toFixed(3)}%`;
+}

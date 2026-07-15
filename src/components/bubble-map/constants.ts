@@ -19,8 +19,9 @@ export const ALPHA_REHEAT = 0.35;
 export const ALPHA_COOL = 0.03;
 
 // ── LOD: 크기별 버블 내용물 표시 임계 반경 ──
-export const LOD_NAME_MIN_R = 30;
-export const LOD_CHANGE_MIN_R = 22;
+export const LOD_NAME_MIN_R = 30; // 이름
+export const LOD_COUNT_MIN_R = 20; // 현재 동접 수 (핵심 지표)
+export const LOD_RANK_MIN_R = 40; // 순위 #N (큰 버블만)
 
 // ── 인터랙션 ──
 export const HOVER_SCALE = 1.07;

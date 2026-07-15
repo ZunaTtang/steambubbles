@@ -10,6 +10,7 @@ import {
   formatPlayers,
   formatPlayersFull,
   formatPrice,
+  formatSharePct,
 } from "@/lib/format";
 
 interface GameModalProps {
@@ -190,6 +191,17 @@ export default function GameModal({
               </dd>
               <dd className="text-xs text-neutral-500">
                 {t("totalReviews", { count: game.totalReviews })}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-neutral-500">
+                {tCommon("marketShare")}
+              </dt>
+              <dd className="text-base font-semibold text-neutral-100">
+                {formatSharePct(game.sharePct)}
+              </dd>
+              <dd className="text-xs text-neutral-500">
+                {t("rank", { rank: game.rank })}
               </dd>
             </div>
           </dl>
