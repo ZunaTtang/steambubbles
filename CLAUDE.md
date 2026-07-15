@@ -63,13 +63,13 @@
 
 ### 3-1. 동접자 Top 100 (공식 차트)
 ```
-GET https://api.steampowered.com/ISteamChartsService/GetMostPlayedGames/v1/
+GET https://api.steampowered.com/ISteamChartsService/GetGamesByConcurrentPlayers/v1/
 ```
-- 호출 1번으로 top 100의 appid, rank, concurrent_in_game, peak_in_game.
+- **실테스트 기록 (2026-07)**: `GetMostPlayedGames`는 `{ rank, appid, last_week_rank, peak_in_game }`만 반환하고 **현재 동접(concurrent_in_game)은 없다**(주간 피크만). 반면 **`GetGamesByConcurrentPlayers`는 `{ rank, appid, concurrent_in_game, peak_in_game }`를 반환** — 호출 1번으로 top 100의 현재 동접+피크를 현재 동접 기준 랭킹으로 모두 얻는다. 따라서 Tier 1은 이 엔드포인트 1콜로 처리(기존 GetMostPlayedGames + 앱별 100콜 조합을 대체).
 - **갱신: 10분마다** (일 144콜 — 사실상 무료). 메인 버블맵을 준실시간으로 만드는 핵심. 참고: SteamDB는 상위 1,000개를 5분, 나머지를 10분 주기로 갱신함 — 이 빈도대는 실증된 안전 영역.
 
 ### 3-2. 심층 랭킹 (101위 이하)
-- **1차 시도**: `ISteamChartsService/GetGamesByConcurrentPlayers/v1/` — 100개 초과 반환 여부를 개발 초기에 반드시 실테스트할 것 (반환 수 미확정. 대량 반환 시 아래 폴링 예산이 대폭 절약되므로 최우선 확인).
+- **실테스트 기록 (2026-07)**: `GetGamesByConcurrentPlayers`는 **정확히 100개만 반환**(rank 1~100). 100개 초과 반환은 없으므로 폴링 예산 절약 효과 없음 → 아래 **보장된 폴백(앱별 폴링)이 Tier 2의 유일한 경로**다.
 - **보장된 폴백**: 앱별 개별 폴링
 ```
 GET https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid={appid}

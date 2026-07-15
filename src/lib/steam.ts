@@ -1,4 +1,4 @@
-import { fetchJsonWithRetry } from "./fetch-util";
+import { fetchJsonWithRetry, sleep } from "./fetch-util";
 
 // Steam 공식/공개 API 클라이언트 (CLAUDE.md 3).
 // api.steampowered.com(일 10만 콜)과 store.steampowered.com(~200콜/5분/IP)은
@@ -14,37 +14,43 @@ function apiKeyParam(prefix: "?" | "&"): string {
 }
 
 // ─── 3-1. 동접자 Top 100 랭킹 ───
-// 실테스트(2026-07) 기록: GetMostPlayedGames는 { rank, appid, last_week_rank, peak_in_game }만
-// 반환한다. 스펙(3-1)이 가정한 concurrent_in_game(현재 동접)은 이 응답에 없다 — peak_in_game은
-// 주간 피크다. 따라서 현재 동접은 top 100 appid를 GetNumberOfCurrentPlayers로 개별 조회해야 한다.
+// 실테스트(2026-07): GetGamesByConcurrentPlayers는 { rank, appid, concurrent_in_game,
+// peak_in_game }를 현재 동접 기준 랭킹으로 반환(정확히 100개). 호출 1번으로 top 100의
+// 현재 동접+피크를 얻으므로 Tier 1은 이 엔드포인트 1콜로 처리한다 (GetMostPlayedGames +
+// 앱별 100콜 조합을 대체). 100개 초과는 반환하지 않아 Tier 2는 앱별 폴링이 유일 경로.
 
-export interface MostPlayedGame {
+export interface ConcurrentGame {
   rank: number;
   appid: number;
-  peak: number; // 주간 피크 (peak_in_game)
+  players: number; // 현재 동접 (concurrent_in_game)
+  peak: number; // 피크 (peak_in_game)
 }
 
-interface GetMostPlayedGamesResponse {
+interface GetGamesByConcurrentPlayersResponse {
   response?: {
     ranks?: {
       rank: number;
       appid: number;
-      last_week_rank?: number;
+      concurrent_in_game?: number;
       peak_in_game?: number;
     }[];
   };
 }
 
-export async function getMostPlayedGames(): Promise<MostPlayedGame[]> {
-  const url = `${API_BASE}/ISteamChartsService/GetMostPlayedGames/v1/${apiKeyParam("?")}`;
-  const json = await fetchJsonWithRetry<GetMostPlayedGamesResponse>(url, {
-    domain: "api",
-  });
-  return (json.response?.ranks ?? []).map((r) => ({
-    rank: r.rank,
-    appid: r.appid,
-    peak: r.peak_in_game ?? 0,
-  }));
+export async function getGamesByConcurrentPlayers(): Promise<ConcurrentGame[]> {
+  const url = `${API_BASE}/ISteamChartsService/GetGamesByConcurrentPlayers/v1/${apiKeyParam("?")}`;
+  const json =
+    await fetchJsonWithRetry<GetGamesByConcurrentPlayersResponse>(url, {
+      domain: "api",
+    });
+  return (json.response?.ranks ?? [])
+    .filter((r) => typeof r.concurrent_in_game === "number")
+    .map((r) => ({
+      rank: r.rank,
+      appid: r.appid,
+      players: r.concurrent_in_game as number,
+      peak: r.peak_in_game ?? 0,
+    }));
 }
 
 // ─── 3-2. 앱별 현재 동접 (Tier 1 현재치 + Tier 2 폴링) ───
@@ -90,6 +96,45 @@ export async function getCurrentPlayersBulk(
   );
   await Promise.all(workers);
   return result;
+}
+
+// ─── 3-2. 폴링 유니버스 시드: SteamSpy top 페이지 (rank 101+ 후보 발굴) ───
+// SteamSpy는 서드파티(1req/sec 제한) — 공식 API 서킷과 분리해 자체 처리하고, 실패 시 []로
+// 우아하게 강등한다(유니버스 잡은 저빈도·비핵심). ccu(현재 동접)로 tier 2/3 시드에 사용.
+
+export interface SteamSpyEntry {
+  appid: number;
+  name: string;
+  ccu: number;
+}
+
+export async function getSteamSpyAllPage(page: number): Promise<SteamSpyEntry[]> {
+  const url = `https://steamspy.com/api.php?request=all&page=${page}`;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt > 0) await sleep(2000);
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 30_000);
+      const res = await fetch(url, {
+        signal: ctrl.signal,
+        headers: { "User-Agent": "steambubbles/1.0" },
+      });
+      clearTimeout(timer);
+      if (!res.ok) continue;
+      const json = (await res.json()) as Record<
+        string,
+        { appid?: number; name?: string; ccu?: number } | undefined
+      >;
+      return Object.values(json)
+        .filter((v): v is { appid: number; name: string; ccu: number } =>
+          Boolean(v && typeof v.appid === "number"),
+        )
+        .map((v) => ({ appid: v.appid, name: v.name ?? "", ccu: v.ccu ?? 0 }));
+    } catch {
+      // 재시도 or 최종 실패 시 아래에서 []
+    }
+  }
+  return [];
 }
 
 // ─── 3-3. 가격 + 메타데이터 + 로컬라이즈 (cc 호출 1번이 통화+언어 동시 해결) ───

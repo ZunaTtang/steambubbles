@@ -48,19 +48,16 @@ export async function dbGetBubbleSnapshot(opts: {
 }): Promise<BubbleSnapshot> {
   const { period, currency, locale } = opts;
   const db = getDb();
+  const now = Date.now();
+  // tier1(10분)·tier2(30분)가 서로 다른 ts로 폴링되므로 단일 ts가 아니라 앱별 최신 스냅샷을
+  // 취한다. 최근 2시간 내 폴링된 앱만 포함(폴링이 끊긴 앱은 제외).
+  const RECENCY_MS = 2 * 3_600_000;
 
-  // 최신 스냅샷 시각
-  const tsRows = await db
-    .select({ ts: max(playerSnapshots.ts) })
-    .from(playerSnapshots);
-  const latestTs = tsRows[0]?.ts ? new Date(tsRows[0].ts) : null;
-  if (!latestTs) return emptySnapshot(period);
-
-  // 최신 스냅샷 + 앱 메타 (동접 내림차순 = rank 순)
-  const current = await db
-    .select({
+  const latest = await db
+    .selectDistinctOn([playerSnapshots.appid], {
       appid: playerSnapshots.appid,
       players: playerSnapshots.players,
+      ts: playerSnapshots.ts,
       nameEn: apps.nameEn,
       nameKo: apps.nameKo,
       headerImage: apps.headerImage,
@@ -68,12 +65,19 @@ export async function dbGetBubbleSnapshot(opts: {
     })
     .from(playerSnapshots)
     .innerJoin(apps, eq(apps.appid, playerSnapshots.appid))
-    .where(eq(playerSnapshots.ts, latestTs))
-    .orderBy(desc(playerSnapshots.players), asc(playerSnapshots.appid))
-    .limit(1000);
-  if (current.length === 0) return emptySnapshot(period);
+    .where(gte(playerSnapshots.ts, new Date(now - RECENCY_MS)))
+    .orderBy(asc(playerSnapshots.appid), desc(playerSnapshots.ts));
+  if (latest.length === 0) return emptySnapshot(period);
 
+  // 동접 내림차순 = rank 순, 상위 1000
+  const current = latest
+    .slice()
+    .sort((a, b) => b.players - a.players)
+    .slice(0, 1000);
   const appids = current.map((r) => r.appid);
+  const updatedAt = new Date(
+    Math.max(...current.map((r) => new Date(r.ts).getTime())),
+  );
 
   // 앱별 24h 피크
   const peakRows = await db
@@ -82,7 +86,7 @@ export async function dbGetBubbleSnapshot(opts: {
     .where(
       and(
         inArray(playerSnapshots.appid, appids),
-        gte(playerSnapshots.ts, new Date(latestTs.getTime() - DAY_MS)),
+        gte(playerSnapshots.ts, new Date(now - DAY_MS)),
       ),
     )
     .groupBy(playerSnapshots.appid);
@@ -90,10 +94,10 @@ export async function dbGetBubbleSnapshot(opts: {
     peakRows.map((r) => [r.appid, r.peak ?? 0]),
   );
 
-  // 변화율 기준점 — 24h: ts-24h에 가장 가까운 스냅샷 / 7d·30d: N일 전 player_daily.peak
+  // 변화율 기준점 — 24h: now-24h에 가장 가까운 스냅샷 / 7d·30d: N일 전 player_daily.peak
   const baseByApp = new Map<number, number>();
   if (period === "24h") {
-    const target = new Date(latestTs.getTime() - DAY_MS);
+    const target = new Date(now - DAY_MS);
     const targetEpoch = Math.floor(target.getTime() / 1000);
     const baseRows = await db
       .selectDistinctOn([playerSnapshots.appid], {
@@ -115,9 +119,7 @@ export async function dbGetBubbleSnapshot(opts: {
     for (const r of baseRows) baseByApp.set(r.appid, r.players);
   } else {
     const days = period === "7d" ? 7 : 30;
-    const targetDate = new Date(latestTs.getTime() - days * DAY_MS)
-      .toISOString()
-      .slice(0, 10);
+    const targetDate = new Date(now - days * DAY_MS).toISOString().slice(0, 10);
     const baseRows = await db
       .select({ appid: playerDaily.appid, peak: playerDaily.peak })
       .from(playerDaily)
@@ -228,7 +230,7 @@ export async function dbGetBubbleSnapshot(opts: {
   });
 
   return {
-    updatedAt: latestTs.toISOString(),
+    updatedAt: updatedAt.toISOString(),
     period,
     games,
     priceDataStale,
