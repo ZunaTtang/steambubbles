@@ -1,7 +1,7 @@
 import { Circle, Container, Graphics, Sprite, Text, type Texture } from "pixi.js";
 import type { SimulationNodeDatum } from "d3-force";
 import type { GameBubbleData } from "@/lib/types";
-import { formatChangePct } from "@/lib/format";
+import { formatPlayers } from "@/lib/format";
 import { COLOR_DISCOUNT, FILL_ALPHA } from "./colors";
 import {
   HOVER_SCALE,
@@ -123,7 +123,8 @@ export class BubbleNode {
       showName !== this.optShowName ||
       showChange !== this.optShowChange ||
       game.name !== prev.name ||
-      game.changePct !== prev.changePct ||
+      game.players !== prev.players ||
+      game.sharePct !== prev.sharePct ||
       nextDiscount !== prevDiscount
     ) {
       this.gfxDirty = true;
@@ -212,9 +213,8 @@ export class BubbleNode {
     this.hit.radius = Math.max(r + (discount > 0 ? 3 : 0), 6);
 
     // ── LOD: r 크기·설정에 따른 내용물 (CLAUDE.md 5-1) ──
-    const pct = this.game.changePct;
     const showName = this.optShowName && r >= LOD_NAME_MIN_R;
-    const showChange = this.optShowChange && r >= LOD_CHANGE_MIN_R && pct !== null;
+    const showChange = this.optShowChange && r >= LOD_CHANGE_MIN_R;
 
     // 아트 배치 — 텍스트 유무에 따라 상단 배치, 없으면 버블 전체 채움
     let artD: number;
@@ -257,9 +257,10 @@ export class BubbleNode {
       this.nameText.visible = false;
     }
 
-    if (showChange && pct !== null) {
-      const label = formatChangePct(pct);
-      const fs = clampInt(r * 0.22, 8, 17);
+    if (showChange) {
+      // 증감% 대신 현재 동접 수 + 전체 동접 중 점유율(보는맛 있는 지표)
+      const label = `${formatPlayers(this.game.players)} · ${this.game.sharePct.toFixed(1)}%`;
+      const fs = clampInt(r * 0.2, 8, 16);
       if (!this.changeText) this.changeText = this.makeText();
       const t = this.changeText;
       if (this.changeShown !== label) {

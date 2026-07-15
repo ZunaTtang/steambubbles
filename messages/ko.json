@@ -27,7 +27,7 @@
     "colorByChange": "변화율",
     "colorByReview": "평점",
     "showName": "게임명 표시",
-    "showChange": "변화율 표시",
+    "showChange": "수치 표시",
     "currency": "통화",
     "clearFilters": "필터 초기화",
     "filters": "필터",

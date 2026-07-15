@@ -1,11 +1,12 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { and, eq, notInArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { apps, playerSnapshots } from "@/db/schema";
 import { isMockMode } from "@/lib/data";
+import { sleep } from "@/lib/fetch-util";
 import { recordJobRun } from "@/lib/jobs";
-import { getGamesByConcurrentPlayers } from "@/lib/steam";
+import { getAppDetails, getGamesByConcurrentPlayers } from "@/lib/steam";
 
 // Tier 1 동접 수집 (CLAUDE.md 3-1) — QStash가 10분 주기로 호출.
 // GetGamesByConcurrentPlayers 1콜로 top 100의 현재 동접+랭킹을 받아 스냅샷 적재.
@@ -65,6 +66,32 @@ export async function POST(req: NextRequest) {
       }));
       await db.insert(playerSnapshots).values(values).onConflictDoNothing();
       snapshotRows = values.length;
+
+      // top100 중 이름 미수집 앱 즉시 백필 (신규 진입 → 버블맵 "#appid" 방지).
+      // store 1.6초 스로틀, 회당 5개 캡. 실패해도 코어(스냅샷)에 영향 없게 try/catch.
+      try {
+        const unnamed = await db
+          .select({ appid: apps.appid })
+          .from(apps)
+          .where(and(inArray(apps.appid, appids), isNull(apps.nameEn)))
+          .limit(5);
+        for (let i = 0; i < unnamed.length; i++) {
+          if (i > 0) await sleep(1600);
+          const d = await getAppDetails(unnamed[i].appid, "us");
+          if (d?.name) {
+            await db
+              .update(apps)
+              .set({
+                nameEn: d.name,
+                headerImage: sql`coalesce(${apps.headerImage}, ${d.headerImage})`,
+                updatedAt: new Date(),
+              })
+              .where(eq(apps.appid, unnamed[i].appid));
+          }
+        }
+      } catch (e) {
+        console.error("tier1 이름 백필 스킵:", e);
+      }
     }
 
     await recordJobRun("players-tier1", "ok", snapshotRows);

@@ -34,6 +34,8 @@ export interface GameBubbleData {
   nameEn: string;
   players: number;
   peak24h: number;
+  // 추적 중인 전체 동접자 합 대비 이 게임의 점유율(%) — 버블 표시용 핵심 지표
+  sharePct: number;
   // 선택 기간 동접 변화율(%). null = 산출 불가
   changePct: number | null;
   // history = 실변화율, peak-fallback = 콜드스타트 폴백(players/peak24h 기반)

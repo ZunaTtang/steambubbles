@@ -187,9 +187,13 @@ export async function dbGetBubbleSnapshot(opts: {
     else genresByApp.set(r.appid, [r.genreId]);
   }
 
+  // 전체 동접자 합 (점유율 계산 기준)
+  const totalPlayers = current.reduce((sum, r) => sum + r.players, 0);
+
   const games: GameBubbleData[] = current.map((row, i) => {
     const players = row.players;
     const peak24h = Math.max(peakByApp.get(row.appid) ?? 0, players);
+    const sharePct = totalPlayers > 0 ? (players / totalPlayers) * 100 : 0;
 
     const base = baseByApp.get(row.appid);
     let changePct: number | null;
@@ -218,6 +222,7 @@ export async function dbGetBubbleSnapshot(opts: {
       nameEn: row.nameEn ?? fallbackName,
       players,
       peak24h,
+      sharePct,
       changePct,
       changeSource,
       headerImage: row.headerImage,

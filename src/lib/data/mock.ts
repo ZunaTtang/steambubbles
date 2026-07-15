@@ -46,7 +46,9 @@ export async function mockGetBubbleSnapshot(opts: {
   locale: Locale;
 }): Promise<BubbleSnapshot> {
   const { period, currency, locale } = opts;
-  const games = (rawGames as MockGame[]).map((g) => {
+  const all = rawGames as MockGame[];
+  const totalPlayers = all.reduce((sum, g) => sum + g.players, 0);
+  const games = all.map((g) => {
     const price = currency === "KRW" ? g.priceKrw : g.priceUsd;
     const changePct =
       period === "24h" ? g.change24h : period === "7d" ? g.change7d : g.change30d;
@@ -57,6 +59,7 @@ export async function mockGetBubbleSnapshot(opts: {
       nameEn: g.nameEn,
       players: g.players,
       peak24h: g.peak24h,
+      sharePct: totalPlayers > 0 ? (g.players / totalPlayers) * 100 : 0,
       changePct,
       changeSource: "history" as const,
       headerImage: g.hasImage ? headerUrl(g.appid) : null,

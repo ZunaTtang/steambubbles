@@ -1,11 +1,12 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { sql } from "drizzle-orm";
+import { eq, isNull, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { apps } from "@/db/schema";
 import { isMockMode } from "@/lib/data";
+import { sleep } from "@/lib/fetch-util";
 import { recordJobRun } from "@/lib/jobs";
-import { getSteamSpyAllPage } from "@/lib/steam";
+import { getAppDetails, getSteamSpyAllPage } from "@/lib/steam";
 
 // 폴링 유니버스 구축 (CLAUDE.md 3-2) — QStash가 일 1회 호출.
 // SteamSpy top 페이지(소유자 순 상위 1000)를 ccu(현재 동접) 순으로 정렬해 상위 ~900개를
@@ -77,8 +78,41 @@ export async function POST(req: NextRequest) {
       upserted += chunk.length;
     }
 
+    // 이름 미수집(name_en null) 앱 백필 — store appdetails로 이름·헤더를 채워 버블맵 "#appid" 제거.
+    // (details 크론이 채우기 전 top100 신규 진입 등). store 1.6초 스로틀 준수, 회당 20개로 캡.
+    let backfilled = 0;
+    const unnamed = await db
+      .select({ appid: apps.appid })
+      .from(apps)
+      .where(isNull(apps.nameEn))
+      .limit(20);
+    for (let i = 0; i < unnamed.length; i++) {
+      if (i > 0) await sleep(1600);
+      try {
+        const d = await getAppDetails(unnamed[i].appid, "us");
+        if (d?.name) {
+          await db
+            .update(apps)
+            .set({
+              nameEn: d.name,
+              headerImage: sql`coalesce(${apps.headerImage}, ${d.headerImage})`,
+              updatedAt: new Date(),
+            })
+            .where(eq(apps.appid, unnamed[i].appid));
+          backfilled += 1;
+        }
+      } catch {
+        // 개별 실패 스킵 (다음 주기 재시도)
+      }
+    }
+
     await recordJobRun("universe", "ok", upserted);
-    return NextResponse.json({ ok: true, fetched: entries.length, tier2: upserted });
+    return NextResponse.json({
+      ok: true,
+      fetched: entries.length,
+      tier2: upserted,
+      backfilled,
+    });
   } catch (err) {
     console.error("universe 실패:", err);
     await recordJobRun("universe", "error", 0);
