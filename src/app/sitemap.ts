@@ -3,7 +3,7 @@ import { routing } from "@/i18n/routing";
 import { getTrackedAppids } from "@/lib/data";
 import { getSiteUrl } from "@/lib/site";
 
-// 동적 사이트맵 — 오픈된 로케일(현재 ko)만. 홈 + 정적 페이지 + 추적 게임 상세.
+// 동적 사이트맵 — 오픈된 모든 로케일(ko·en). 홈 + 정적 페이지 + 추적 게임 상세.
 export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {

@@ -4,7 +4,7 @@ import { Link } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
 import { buildAlternates } from "@/lib/site";
 
-// 소개 페이지 — 현재 ko만 오픈이라 본문은 한국어. 타 로케일 오픈 시 로케일별 콘텐츠로 분기.
+// 소개 페이지 — 제목·내비는 로케일별(t()), 본문은 아직 한국어만(미번역). en 등 번역 확보 시 로케일별 콘텐츠로 분기.
 
 export const revalidate = 86400; // ISR — 완전 정적 렌더 시 next-intl 요청 스코프 문제 회피
 

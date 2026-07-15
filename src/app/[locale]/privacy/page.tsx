@@ -4,7 +4,7 @@ import { Link } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
 import { buildAlternates } from "@/lib/site";
 
-// 개인정보처리방침 — 애드센스 승인 요건. 현재 ko만 오픈이라 본문은 한국어.
+// 개인정보처리방침 — 애드센스 승인 요건. 제목·내비는 로케일별(t()), 본문은 아직 한국어만(미번역).
 // TODO(운영자): 광고/애널리틱스 실제 도입 시점과 문의 연락처를 확정해 갱신할 것.
 
 export const revalidate = 86400; // ISR — 완전 정적 렌더 시 next-intl 요청 스코프 문제 회피
