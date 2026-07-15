@@ -4,14 +4,13 @@ import { notFound } from "next/navigation";
 import { hasLocale } from "next-intl";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
-import { routing } from "@/i18n/routing";
 import {
   ALL_LOCALES,
   DEFAULT_CURRENCY,
   DEFAULT_LOCALE,
   type Locale,
 } from "@/i18n/locales";
-import { getBubbleSnapshot, getGenreOptions, getTrackedAppids, getTrend } from "@/lib/data";
+import { getBubbleSnapshot, getGenreOptions, getTrend } from "@/lib/data";
 import type { Currency, GameBubbleData, TrendPoint } from "@/lib/types";
 import { formatPlayersFull, formatPrice } from "@/lib/format";
 import { buildAlternates, getSiteUrl } from "@/lib/site";
@@ -20,21 +19,17 @@ import { buildAlternates, getSiteUrl } from "@/lib/site";
 // 쿠키 통화 대신 로케일 기본 통화로 렌더 → 정적 프리렌더/ISR 가능 (SEO 유리).
 
 export const revalidate = 1800; // ISR 30분 (CLAUDE.md 4-3)
-
-// 상위 N개(로케일당)만 빌드 시 사전생성, 나머지는 on-demand ISR. 로케일이 늘면 프리렌더
-// 페이지가 배수로 늘어 빌드 시 Neon 쿼리 폭주 → 연결 리셋. 상위만 프리렌더하고 롱테일은 ISR.
-const PRERENDER_LIMIT = 60;
+// 빌드 시 상세 페이지를 사전생성하지 않는다: 로케일 다중화로 페이지가 배수가 되면 빌드가
+// Neon(scale-to-zero)에 쿼리를 몰아쳐 연결 리셋으로 실패한다. 전부 on-demand ISR로 렌더하고
+// (첫 방문 시 생성 후 30분 캐시) sitemap에 등재해 색인은 그대로 확보한다.
+export const dynamicParams = true;
 
 type Props = {
   params: Promise<{ locale: string; appid: string }>;
 };
 
-export async function generateStaticParams() {
-  const appids = await getTrackedAppids();
-  const top = appids.slice(0, PRERENDER_LIMIT).map(String);
-  return routing.locales.flatMap((locale) =>
-    top.map((appid) => ({ locale, appid })),
-  );
+export function generateStaticParams() {
+  return [];
 }
 
 function toLocale(raw: string): Locale {

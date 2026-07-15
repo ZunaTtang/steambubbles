@@ -8,7 +8,14 @@ export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = getSiteUrl();
-  const appids = await getTrackedAppids();
+  // 빌드/재검증 시 Neon 일시 오류로 sitemap 생성이 실패하지 않도록 우아하게 강등
+  // (게임 목록은 다음 revalidate에 채워짐)
+  let appids: number[] = [];
+  try {
+    appids = await getTrackedAppids();
+  } catch {
+    appids = [];
+  }
   const entries: MetadataRoute.Sitemap = [];
 
   for (const locale of routing.locales) {
