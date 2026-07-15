@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
+import { buildAlternates } from "@/lib/site";
 
 // 개인정보처리방침 — 애드센스 승인 요건. 현재 ko만 오픈이라 본문은 한국어.
 // TODO(운영자): 광고/애널리틱스 실제 도입 시점과 문의 연락처를 확정해 갱신할 것.
@@ -17,7 +18,10 @@ type Props = { params: Promise<{ locale: string }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale });
-  return { title: t("nav.privacy") };
+  return {
+    title: t("nav.privacy"),
+    alternates: buildAlternates("/privacy", locale),
+  };
 }
 
 export default async function PrivacyPage({ params }: Props) {

@@ -4,8 +4,9 @@
 export const ALL_LOCALES = ["ko", "en", "ja", "zh"] as const;
 export type Locale = (typeof ALL_LOCALES)[number];
 
-// Launch는 ko만 오픈. en 사전은 폴백용으로만 유지 (노출·sitemap 제외).
-export const OPEN_LOCALES = ["ko"] as const;
+// 오픈 로케일: ko(기본) + en. ja/zh는 여전히 동결(CLAUDE.md 8) — 오픈 시 여기 추가.
+// en은 사용자 결정으로 정식 오픈(색인·sitemap·hreflang 포함).
+export const OPEN_LOCALES = ["ko", "en"] as const;
 export const DEFAULT_LOCALE = "ko" as const;
 
 // 로케일 기본 통화 (ko→KRW, 그 외→USD).

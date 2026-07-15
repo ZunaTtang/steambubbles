@@ -14,14 +14,16 @@ import {
 import { getBubbleSnapshot, getGenreOptions, getTrackedAppids, getTrend } from "@/lib/data";
 import type { Currency, GameBubbleData, TrendPoint } from "@/lib/types";
 import { formatPlayersFull, formatPrice } from "@/lib/format";
-import { getSiteUrl } from "@/lib/site";
+import { buildAlternates, getSiteUrl } from "@/lib/site";
 
 // 게임 상세 (CLAUDE.md 5-3) — 자연문 콘텐츠 + 추이 + SEO 메타/구조화 데이터.
 // 쿠키 통화 대신 로케일 기본 통화로 렌더 → 정적 프리렌더/ISR 가능 (SEO 유리).
 
 export const revalidate = 1800; // ISR 30분 (CLAUDE.md 4-3)
 
-const PRERENDER_LIMIT = 200; // Tier 1~2 상위 N개만 빌드 시 사전생성, 나머지는 on-demand ISR
+// 상위 N개(로케일당)만 빌드 시 사전생성, 나머지는 on-demand ISR. 로케일이 늘면 프리렌더
+// 페이지가 배수로 늘어 빌드 시 Neon 쿼리 폭주 → 연결 리셋. 상위만 프리렌더하고 롱테일은 ISR.
+const PRERENDER_LIMIT = 60;
 
 type Props = {
   params: Promise<{ locale: string; appid: string }>;
@@ -77,7 +79,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!game) {
     return { title: t("detail.notFound"), robots: { index: false } };
   }
-  const canonical = `${getSiteUrl()}/${locale}/game/${appid}`;
+  const alternates = buildAlternates(`/game/${appid}`, locale);
   const title = `${game.name} ${t("detail.metaTitleSuffix")}`;
   const description = t("detail.metaDescription", {
     name: game.name,
@@ -89,14 +91,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title,
     description,
-    alternates: {
-      canonical,
-      languages: { ko: canonical, "x-default": canonical },
-    },
+    alternates,
     openGraph: {
       title,
       description,
-      url: canonical,
+      url: alternates.canonical,
       siteName: t("site.title"),
       type: "article",
       locale,

@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { usePathname, useRouter } from "@/i18n/navigation";
+import { routing } from "@/i18n/routing";
 import type {
   BubbleSettings,
   ColorBy,
@@ -70,6 +72,9 @@ export default function TopBar({
 }: TopBarProps) {
   const t = useTranslations("controls");
   const tSite = useTranslations("site");
+  const locale = useLocale();
+  const router = useRouter();
+  const pathname = usePathname();
   const [searchFocused, setSearchFocused] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   // 모바일: 필터 행(범위/장르/즐겨찾기) 접힘 (CLAUDE.md 5-1)
@@ -175,6 +180,29 @@ export default function TopBar({
             <path d="M1 3h14v1.5H1V3zm2.5 4.5h9V9h-9V7.5zM6 12h4v1.5H6V12z" />
           </svg>
         </button>
+
+        {routing.locales.length > 1 && (
+          <div
+            className="flex shrink-0 overflow-hidden rounded-md border border-neutral-800"
+            role="group"
+            aria-label="Language"
+          >
+            {routing.locales.map((l) => (
+              <button
+                key={l}
+                onClick={() => router.replace(pathname, { locale: l })}
+                aria-pressed={locale === l}
+                className={`px-2 py-1 text-xs uppercase transition-colors ${
+                  locale === l
+                    ? "bg-neutral-700 text-white"
+                    : "text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200"
+                }`}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="relative shrink-0">
           <button

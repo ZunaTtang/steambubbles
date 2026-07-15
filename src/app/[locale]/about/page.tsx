@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
+import { buildAlternates } from "@/lib/site";
 
 // 소개 페이지 — 현재 ko만 오픈이라 본문은 한국어. 타 로케일 오픈 시 로케일별 콘텐츠로 분기.
 
@@ -16,7 +17,7 @@ type Props = { params: Promise<{ locale: string }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale });
-  return { title: t("nav.about") };
+  return { title: t("nav.about"), alternates: buildAlternates("/about", locale) };
 }
 
 export default async function AboutPage({ params }: Props) {

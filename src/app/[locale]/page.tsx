@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { hasLocale } from "next-intl";
 import { setRequestLocale } from "next-intl/server";
@@ -9,6 +10,7 @@ import {
   type Locale,
 } from "@/i18n/locales";
 import { getBubbleSnapshot, getGenreOptions } from "@/lib/data";
+import { buildAlternates } from "@/lib/site";
 import type { Currency } from "@/lib/types";
 import BubbleApp from "@/components/app/BubbleApp";
 
@@ -18,6 +20,12 @@ type Props = {
 
 // 통화는 SSR이 쿠키에서 읽는다 (CLAUDE.md 7) — 정적 프리렌더 금지
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { locale: rawLocale } = await params;
+  const locale = hasLocale(ALL_LOCALES, rawLocale) ? rawLocale : DEFAULT_LOCALE;
+  return { alternates: buildAlternates("", locale) };
+}
 
 export default async function HomePage({ params }: Props) {
   const { locale: rawLocale } = await params;
