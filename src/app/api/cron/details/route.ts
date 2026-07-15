@@ -213,7 +213,12 @@ export async function POST(req: NextRequest) {
     if (!circuitOpen && hasMore && process.env.QSTASH_TOKEN) {
       const origin = process.env.SITE_URL ?? req.nextUrl.origin;
       try {
-        const qstash = new Client({ token: process.env.QSTASH_TOKEN });
+        // baseUrl에 지역 엔드포인트(QSTASH_URL, 예: us-east-1) 지정 — 미지정 시 SDK 기본은
+        // 글로벌 주소라 지역 계정에서 publish가 실패할 수 있다 (실측 확인)
+        const qstash = new Client({
+          token: process.env.QSTASH_TOKEN,
+          baseUrl: process.env.QSTASH_URL,
+        });
         await qstash.publishJSON({
           url: `${origin}/api/cron/details`,
           headers: { Authorization: `Bearer ${secret}` },
