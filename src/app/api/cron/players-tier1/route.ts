@@ -5,12 +5,14 @@ import { getDb } from "@/db";
 import { apps, playerSnapshots } from "@/db/schema";
 import { isMockMode } from "@/lib/data";
 import { recordJobRun } from "@/lib/jobs";
-import { getMostPlayedGames } from "@/lib/steam";
+import { getCurrentPlayersBulk, getMostPlayedGames } from "@/lib/steam";
 
 // Tier 1 동접 수집 (CLAUDE.md 3-1) — QStash가 10분 주기로 호출.
-// 호출 1번으로 top 100 스냅샷 적재 + 폴링 유니버스(apps) 자동 편입.
+// GetMostPlayedGames로 top 100 랭킹을 받고(현재 동접은 미포함, 실테스트 기록 steam.ts 참조),
+// 각 appid의 현재 동접을 GetNumberOfCurrentPlayers로 조회해 스냅샷 적재 + 유니버스(apps) 편입.
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60; // 100개 앱 현재치 조회 여유 (Pro 상향, Hobby는 플랫폼 상한)
 
 export async function POST(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
@@ -28,6 +30,7 @@ export async function POST(req: NextRequest) {
     const ranks = await getMostPlayedGames();
     const ts = new Date(); // 스냅샷 전체가 단일 ts를 공유
 
+    let snapshotRows = 0;
     if (ranks.length > 0) {
       const db = getDb();
       await db
@@ -50,16 +53,22 @@ export async function POST(req: NextRequest) {
           },
         });
 
-      await db
-        .insert(playerSnapshots)
-        .values(ranks.map((r) => ({ appid: r.appid, ts, players: r.players })))
-        .onConflictDoNothing();
+      // 현재 동접은 앱별 조회 (GetMostPlayedGames에 없음). 조회 성공분만 스냅샷 적재.
+      const playersByApp = await getCurrentPlayersBulk(ranks.map((r) => r.appid));
+      const values = ranks
+        .filter((r) => playersByApp.has(r.appid))
+        .map((r) => ({ appid: r.appid, ts, players: playersByApp.get(r.appid)! }));
+      snapshotRows = values.length;
+      if (values.length > 0) {
+        await db.insert(playerSnapshots).values(values).onConflictDoNothing();
+      }
     }
 
-    await recordJobRun("players-tier1", "ok", ranks.length);
+    await recordJobRun("players-tier1", "ok", snapshotRows);
     return NextResponse.json({
       ok: true,
-      rows: ranks.length,
+      apps: ranks.length,
+      snapshots: snapshotRows,
       ts: ts.toISOString(),
     });
   } catch (err) {

@@ -13,13 +13,15 @@ function apiKeyParam(prefix: "?" | "&"): string {
   return key ? `${prefix}key=${key}` : "";
 }
 
-// ─── 3-1. 동접자 Top 100 ───
+// ─── 3-1. 동접자 Top 100 랭킹 ───
+// 실테스트(2026-07) 기록: GetMostPlayedGames는 { rank, appid, last_week_rank, peak_in_game }만
+// 반환한다. 스펙(3-1)이 가정한 concurrent_in_game(현재 동접)은 이 응답에 없다 — peak_in_game은
+// 주간 피크다. 따라서 현재 동접은 top 100 appid를 GetNumberOfCurrentPlayers로 개별 조회해야 한다.
 
 export interface MostPlayedGame {
   rank: number;
   appid: number;
-  players: number;
-  peak: number;
+  peak: number; // 주간 피크 (peak_in_game)
 }
 
 interface GetMostPlayedGamesResponse {
@@ -27,8 +29,8 @@ interface GetMostPlayedGamesResponse {
     ranks?: {
       rank: number;
       appid: number;
-      concurrent_in_game: number;
-      peak_in_game: number;
+      last_week_rank?: number;
+      peak_in_game?: number;
     }[];
   };
 }
@@ -41,12 +43,11 @@ export async function getMostPlayedGames(): Promise<MostPlayedGame[]> {
   return (json.response?.ranks ?? []).map((r) => ({
     rank: r.rank,
     appid: r.appid,
-    players: r.concurrent_in_game,
-    peak: r.peak_in_game,
+    peak: r.peak_in_game ?? 0,
   }));
 }
 
-// ─── 3-2. 앱별 개별 폴링 (Tier 2 폴백) ───
+// ─── 3-2. 앱별 현재 동접 (Tier 1 현재치 + Tier 2 폴링) ───
 
 interface GetNumberOfCurrentPlayersResponse {
   response?: { player_count?: number; result?: number };
@@ -62,6 +63,33 @@ export async function getNumberOfCurrentPlayers(
   const r = json.response;
   if (!r || r.result !== 1 || typeof r.player_count !== "number") return null;
   return r.player_count;
+}
+
+// 여러 appid의 현재 동접을 제한된 동시성으로 조회 (api 도메인, 100k/일 예산 내).
+// 실패한 앱은 결과 맵에서 제외 — 호출 측이 null 스냅샷을 만들지 않도록.
+export async function getCurrentPlayersBulk(
+  appids: number[],
+  concurrency = 12,
+): Promise<Map<number, number>> {
+  const result = new Map<number, number>();
+  let cursor = 0;
+  async function worker(): Promise<void> {
+    while (cursor < appids.length) {
+      const appid = appids[cursor++];
+      try {
+        const n = await getNumberOfCurrentPlayers(appid);
+        if (n !== null) result.set(appid, n);
+      } catch {
+        // 개별 실패는 스킵 (서킷 오픈 등은 fetch-util이 처리)
+      }
+    }
+  }
+  const workers = Array.from(
+    { length: Math.min(concurrency, appids.length) },
+    () => worker(),
+  );
+  await Promise.all(workers);
+  return result;
 }
 
 // ─── 3-3. 가격 + 메타데이터 + 로컬라이즈 (cc 호출 1번이 통화+언어 동시 해결) ───
