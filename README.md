@@ -103,16 +103,17 @@ scripts/                # 목업 fixture 생성기
 각 Phase 완료 시마다 프로덕션 배포. 상세 기준·제약은 [CLAUDE.md](./CLAUDE.md) 6번이 기준이며,
 Phase별 세부 체크리스트는 GitHub 이슈로 추적한다.
 
-### Phase 1 — 기반 ([#1](https://github.com/ZunaTtang/steambubbles/issues/1)) 🔄 코드 완료, 실환경 연결 대기
+### Phase 1 — 기반 ([#1](https://github.com/ZunaTtang/steambubbles/issues/1)) ✅ 자동수집 LIVE (알림만 Discord 대기)
 
 - [x] Next.js 15 + next-intl 구조 (Launch 오픈은 `/ko`만)
 - [x] Neon/Drizzle 스키마 + 초기 마이그레이션
-- [x] 공통 fetch 유틸 (지수 백오프 + 서킷브레이커 + 지터)
+- [x] 공통 fetch 유틸 (지수 백오프 + 서킷브레이커(DB 지속화) + 지터)
 - [x] `/api/cron/players-tier1` 수집 핸들러 + `job_runs` 기록
 - [x] 데드맨스위치 헬스체크 핸들러 → Discord 웹훅 알림
-- [ ] 실환경 연결: Neon `DATABASE_URL` + QStash 스케줄 등록 + Discord 웹훅 → **완료 기준 검증**
+- [x] 실환경 연결: Neon + Vercel 배포 + QStash 스케줄(players-tier1 10분 / details 일 1회 체이닝 / healthcheck 일 1회) — 프로덕션 자동수집 검증 완료
+- [ ] Discord 웹훅(`ALERT_WEBHOOK_URL`) → 중단 알림 활성화 (백로그)
 
-**완료 기준**: top 100 스냅샷 10분 주기 자동 적재 + 수집 중단 시 Discord 알림 수신 확인
+**완료 기준**: top 100 스냅샷 10분 자동 적재 ✅ 검증 / 수집 중단 시 알림 ⏸️ (Discord 대기)
 
 ### Phase 2 — 버블맵 + 랭킹 테이블 ([#2](https://github.com/ZunaTtang/steambubbles/issues/2)) 🔄 목업 모드로 동작 중
 
