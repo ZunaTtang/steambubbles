@@ -134,11 +134,13 @@ Phase별 세부 체크리스트는 GitHub 이슈로 추적한다.
 - [x] 개인정보처리방침·소개 페이지 (애드센스 승인 요건)
 - [ ] 애드센스 신청 (콘텐츠 축적 후) + 문의 연락처 확정
 
-### Phase 3 — Tier 2 수집 ([#3](https://github.com/ZunaTtang/steambubbles/issues/3)) — 다음 (ko 유입 신호 시)
+### Phase 3 — Tier 2 수집 ([#3](https://github.com/ZunaTtang/steambubbles/issues/3)) ✅ LIVE
 
-- [ ] `GetGamesByConcurrentPlayers` 실테스트 → 결과 CLAUDE.md에 기록
-- [ ] 폴링 유니버스 구축 + Tier 2 30분 폴링 (배치 분할 + QStash 체이닝)
-- [ ] 티어 재배정(일 1회) + 롤업/보존 잡 (→ 상세 페이지 추이 차트 데이터)
+- [x] `GetGamesByConcurrentPlayers` 실테스트 → CLAUDE.md 기록 (100개·현재동접 포함 → Tier 1 1콜 최적화)
+- [x] 유니버스(SteamSpy ccu, name_en·헤더 시드) + Tier 2 30분 폴링 (keyset 배치 + QStash 체이닝)
+- [x] player_snapshots→player_daily 롤업 + 45일 보존 잡 (maintenance)
+- [x] tier1=현재 top100 유지(강등) / 버블맵 앱별 최신 스냅샷 조회 → 943게임 전범위 라이브
+- [ ] (후행) Tier 2 가격·한글명 details 갱신 — QStash 무료 한도상 보류 (이름·이미지는 SteamSpy로 이미 제공)
 
 ### Phase 5 — 마감 ([#5](https://github.com/ZunaTtang/steambubbles/issues/5))
 
