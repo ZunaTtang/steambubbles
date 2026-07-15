@@ -116,3 +116,10 @@ export async function mockGetTrend(
   }
   return points;
 }
+
+// generateStaticParams·sitemap용 — 목업은 랭크 순 전체 appid
+export async function mockGetTrackedAppids(): Promise<number[]> {
+  return [...(rawGames as MockGame[])]
+    .sort((a, b) => a.rank - b.rank)
+    .map((g) => g.appid);
+}

@@ -60,9 +60,29 @@
     "loadMore": "Load more ({count, number})"
   },
   "detail": {
-    "wip": "The game detail page ships in Phase 4.",
+    "home": "Home",
     "backHome": "Back to the bubble map",
-    "notFound": "Game not found"
+    "notFound": "Game not found",
+    "aboutHeading": "Game info",
+    "trendHeading": "Player trend",
+    "trendEmpty": "Not enough trend data has been collected yet.",
+    "genresLabel": "Genres",
+    "metaTitleSuffix": "Steam concurrent players & price",
+    "metaDescription": "{name} live Steam concurrent players: {players, number}, 24h peak {peak, number}. {reviewLabel} · Steam player rank #{rank}.",
+    "sPlayers": "{name} currently has {players, number} concurrent players on Steam.",
+    "sPeak": "Its 24-hour peak was {peak, number} concurrent players.",
+    "sRank": "It ranks #{rank} by concurrent players across Steam.",
+    "sReview": "User reviews are ‘{label}’, with {count, number} reviews on record.",
+    "sReviewNone": "No user reviews have been aggregated yet.",
+    "sFree": "It is free to play.",
+    "sPrice": "The current price is {price}.",
+    "sPriceDiscount": "It is currently {discount}% off — {initial} down to {price}.",
+    "sPriceUnavailable": "Price data is temporarily unavailable.",
+    "updatedNote": "This information is as of {time} and refreshes automatically."
+  },
+  "nav": {
+    "privacy": "Privacy Policy",
+    "about": "About"
   },
   "common": {
     "priceUnavailable": "Price data temporarily unavailable",

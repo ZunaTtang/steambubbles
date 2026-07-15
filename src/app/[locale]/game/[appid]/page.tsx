@@ -1,107 +1,259 @@
 import { cache } from "react";
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { hasLocale } from "next-intl";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
+import { routing } from "@/i18n/routing";
 import {
   ALL_LOCALES,
-  CURRENCY_COOKIE,
   DEFAULT_CURRENCY,
   DEFAULT_LOCALE,
   type Locale,
 } from "@/i18n/locales";
-import { getBubbleSnapshot } from "@/lib/data";
-import type { Currency, GameBubbleData } from "@/lib/types";
-import {
-  formatChangePct,
-  formatPlayersFull,
-  formatPrice,
-} from "@/lib/format";
+import { getBubbleSnapshot, getGenreOptions, getTrackedAppids, getTrend } from "@/lib/data";
+import type { Currency, GameBubbleData, TrendPoint } from "@/lib/types";
+import { formatPlayersFull, formatPrice } from "@/lib/format";
+import { getSiteUrl } from "@/lib/site";
 
-// 게임 상세 — Phase 4에서 본격 구현 (추이 차트·자연문·SEO). 현재는 실데이터 최소 표시.
+// 게임 상세 (CLAUDE.md 5-3) — 자연문 콘텐츠 + 추이 + SEO 메타/구조화 데이터.
+// 쿠키 통화 대신 로케일 기본 통화로 렌더 → 정적 프리렌더/ISR 가능 (SEO 유리).
+
+export const revalidate = 1800; // ISR 30분 (CLAUDE.md 4-3)
+
+const PRERENDER_LIMIT = 200; // Tier 1~2 상위 N개만 빌드 시 사전생성, 나머지는 on-demand ISR
 
 type Props = {
   params: Promise<{ locale: string; appid: string }>;
 };
 
+export async function generateStaticParams() {
+  const appids = await getTrackedAppids();
+  const top = appids.slice(0, PRERENDER_LIMIT).map(String);
+  return routing.locales.flatMap((locale) =>
+    top.map((appid) => ({ locale, appid })),
+  );
+}
+
 function toLocale(raw: string): Locale {
   return hasLocale(ALL_LOCALES, raw) ? raw : DEFAULT_LOCALE;
 }
 
-async function resolveCurrency(locale: Locale): Promise<Currency> {
-  const raw = (await cookies()).get(CURRENCY_COOKIE)?.value;
-  return raw === "KRW" || raw === "USD" ? raw : DEFAULT_CURRENCY[locale];
+function parseAppid(raw: string): number | null {
+  if (!/^\d{1,10}$/.test(raw)) return null;
+  const n = Number(raw);
+  return n > 0 && n <= 2_147_483_647 ? n : null;
 }
 
-// generateMetadata와 페이지 본문의 중복 조회 제거 (요청 단위 캐시)
 const loadSnapshot = cache((locale: Locale, currency: Currency) =>
   getBubbleSnapshot({ period: "24h", currency, locale }),
 );
 
 async function loadGame(
   locale: Locale,
-  currency: Currency,
-  rawAppid: string,
-): Promise<{ game: GameBubbleData | null; priceDataStale: boolean }> {
-  const appid = Number.parseInt(rawAppid, 10);
-  if (!Number.isInteger(appid) || appid <= 0) {
-    return { game: null, priceDataStale: false };
-  }
-  const snapshot = await loadSnapshot(locale, currency);
+  appid: number,
+): Promise<{
+  game: GameBubbleData | null;
+  priceDataStale: boolean;
+  updatedAt: string;
+}> {
+  const snapshot = await loadSnapshot(locale, DEFAULT_CURRENCY[locale]);
   return {
     game: snapshot.games.find((g) => g.appid === appid) ?? null,
     priceDataStale: snapshot.priceDataStale,
+    updatedAt: snapshot.updatedAt,
   };
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { locale: rawLocale, appid } = await params;
+  const { locale: rawLocale, appid: rawAppid } = await params;
   const locale = toLocale(rawLocale);
-  const t = await getTranslations({ locale, namespace: "site" });
-  const currency = await resolveCurrency(locale);
-  const { game } = await loadGame(locale, currency, appid);
+  const t = await getTranslations({ locale });
+  const appid = parseAppid(rawAppid);
+  if (appid === null) {
+    return { title: t("detail.notFound"), robots: { index: false } };
+  }
+  const { game } = await loadGame(locale, appid);
+  if (!game) {
+    return { title: t("detail.notFound"), robots: { index: false } };
+  }
+  const canonical = `${getSiteUrl()}/${locale}/game/${appid}`;
+  const title = `${game.name} ${t("detail.metaTitleSuffix")}`;
+  const description = t("detail.metaDescription", {
+    name: game.name,
+    players: game.players,
+    peak: game.peak24h,
+    reviewLabel: t(`reviewScore.${game.reviewScore}`),
+    rank: game.rank,
+  });
   return {
-    title: game ? `${game.name} — ${t("title")}` : t("title"),
+    title,
+    description,
+    alternates: {
+      canonical,
+      languages: { ko: canonical, "x-default": canonical },
+    },
+    openGraph: {
+      title,
+      description,
+      url: canonical,
+      siteName: t("site.title"),
+      type: "article",
+      locale,
+      images: game.headerImage ? [game.headerImage] : undefined,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: game.headerImage ? [game.headerImage] : undefined,
+    },
   };
 }
 
+// 서버 렌더 추이 스파크라인 (avg 시리즈) — 클라이언트 JS 없이 HTML에 콘텐츠 포함
+function TrendChart({ points }: { points: TrendPoint[] }) {
+  const w = 640;
+  const h = 140;
+  const pad = 8;
+  const vals = points.map((p) => p.avg);
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const span = max - min || 1;
+  const n = points.length;
+  const x = (i: number) => pad + (i * (w - 2 * pad)) / Math.max(1, n - 1);
+  const y = (v: number) => h - pad - ((v - min) / span) * (h - 2 * pad);
+  const line = points.map((p, i) => `${x(i)},${y(p.avg)}`).join(" ");
+  const area = `${pad},${h - pad} ${line} ${x(n - 1)},${h - pad}`;
+  return (
+    <svg
+      viewBox={`0 0 ${w} ${h}`}
+      className="h-auto w-full"
+      role="img"
+      preserveAspectRatio="none"
+    >
+      <polygon points={area} fill="#16c78420" />
+      <polyline
+        points={line}
+        fill="none"
+        stroke="#16c784"
+        strokeWidth={2}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 export default async function GameDetailPage({ params }: Props) {
-  const { locale: rawLocale, appid } = await params;
+  const { locale: rawLocale, appid: rawAppid } = await params;
   setRequestLocale(rawLocale);
   const locale = toLocale(rawLocale);
-  const currency = await resolveCurrency(locale);
-  const { game, priceDataStale } = await loadGame(locale, currency, appid);
+  const appid = parseAppid(rawAppid);
+  if (appid === null) notFound();
+
+  const t = await getTranslations({ locale });
+  const [{ game, priceDataStale, updatedAt }, genreOptions, trend] =
+    await Promise.all([
+      loadGame(locale, appid),
+      getGenreOptions(locale),
+      getTrend(appid, 30),
+    ]);
   if (!game) notFound();
 
-  const t = await getTranslations();
+  const reviewLabel = t(`reviewScore.${game.reviewScore}`);
+  const genreMap = new Map(genreOptions.map((g) => [g.id, g.label]));
+  const genreLabels = game.genreIds
+    .map((id) => genreMap.get(id))
+    .filter((v): v is string => Boolean(v));
+
+  // 가격 문장 (자연문)
+  let priceSentence: string;
+  if (game.isFree) {
+    priceSentence = t("detail.sFree");
+  } else if (priceDataStale || !game.price) {
+    priceSentence = t("detail.sPriceUnavailable");
+  } else if (game.price.discountPct > 0) {
+    priceSentence = t("detail.sPriceDiscount", {
+      discount: game.price.discountPct,
+      initial: formatPrice({ ...game.price, final: game.price.initial }, locale),
+      price: formatPrice(game.price, locale),
+    });
+  } else {
+    priceSentence = t("detail.sPrice", {
+      price: formatPrice(game.price, locale),
+    });
+  }
+
+  const summary = [
+    t("detail.sPlayers", { name: game.name, players: game.players }),
+    t("detail.sPeak", { peak: game.peak24h }),
+    game.reviewScore > 0
+      ? t("detail.sReview", { label: reviewLabel, count: game.totalReviews })
+      : t("detail.sReviewNone"),
+    priceSentence,
+    t("detail.sRank", { rank: game.rank }),
+  ].join(" ");
+
+  const canonical = `${getSiteUrl()}/${locale}/game/${appid}`;
+  const jsonLd: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "VideoGame",
+    name: game.name,
+    url: canonical,
+    inLanguage: locale,
+  };
+  if (game.headerImage) jsonLd.image = game.headerImage;
+  if (genreLabels.length > 0) jsonLd.genre = genreLabels;
+  if (!game.isFree && game.price && !priceDataStale) {
+    jsonLd.offers = {
+      "@type": "Offer",
+      price: (game.price.final / 100).toFixed(2),
+      priceCurrency: game.price.currency,
+      availability: "https://schema.org/InStock",
+      url: `https://store.steampowered.com/app/${appid}`,
+    };
+  }
+
+  const updatedTimeIso = updatedAt;
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
-      <Link
-        href="/"
-        className="mb-4 inline-block text-sm text-neutral-400 hover:text-neutral-200"
-      >
-        ← {t("detail.backHome")}
-      </Link>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+
+      {/* 브레드크럼 */}
+      <nav className="mb-4 text-sm text-neutral-500">
+        <Link href="/" className="hover:text-neutral-300">
+          {t("detail.home")}
+        </Link>
+        <span className="mx-1.5">/</span>
+        <span className="text-neutral-400">{game.name}</span>
+      </nav>
 
       {game.headerImage && (
-        // 스팀 CDN 외부 이미지 — Phase 4에서 next/image 도메인 설정과 함께 정리
+        // 스팀 CDN 외부 이미지 — 상세 페이지는 정적 프리렌더라 일반 img 사용
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={game.headerImage}
           alt={game.name}
+          width={920}
+          height={430}
           className="mb-4 w-full rounded-lg border border-neutral-800"
         />
       )}
 
-      <h1 className="text-2xl font-bold text-neutral-100">{game.name}</h1>
+      <h1 className="text-2xl font-bold text-neutral-100">
+        {game.name} {t("detail.metaTitleSuffix")}
+      </h1>
       <p className="mb-6 text-sm text-neutral-500">
         {t("modal.rank", { rank: game.rank })}
         {game.nameEn !== game.name && ` · ${game.nameEn}`}
       </p>
 
+      {/* 지표 */}
       <dl className="mb-6 grid grid-cols-2 gap-4 rounded-lg border border-neutral-800 bg-neutral-900/40 p-4 sm:grid-cols-4">
         <div>
           <dt className="text-xs text-neutral-500">{t("modal.players")}</dt>
@@ -116,68 +268,90 @@ export default async function GameDetailPage({ params }: Props) {
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-neutral-500">{t("table.change")}</dt>
-          <dd
-            className={`text-lg font-semibold ${
-              game.changePct === null
-                ? "text-neutral-500"
-                : game.changePct >= 0
-                  ? "text-[#16c784]"
-                  : "text-[#ea3943]"
-            }`}
-          >
-            {game.changePct === null ? "—" : formatChangePct(game.changePct)}
+          <dt className="text-xs text-neutral-500">{t("modal.reviews")}</dt>
+          <dd className="text-sm font-semibold text-neutral-100">
+            {reviewLabel}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-neutral-500">{t("modal.reviews")}</dt>
+          <dt className="text-xs text-neutral-500">{t("modal.price")}</dt>
           <dd className="text-sm font-semibold text-neutral-100">
-            {t(`reviewScore.${game.reviewScore}`)}
-          </dd>
-          <dd className="text-xs text-neutral-500">
-            {t("modal.totalReviews", { count: game.totalReviews })}
+            {game.isFree
+              ? t("common.free")
+              : priceDataStale || !game.price
+                ? t("common.priceUnavailable")
+                : formatPrice(game.price, locale)}
           </dd>
         </div>
       </dl>
 
-      {/* 가격 — stale이면 블록 전체 숨김 (우아한 강등, CLAUDE.md 3-3) */}
-      {!priceDataStale && (
-        <div className="mb-6 flex items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900/40 px-4 py-3">
-          <span className="text-xs text-neutral-500">{t("modal.price")}</span>
-          {game.isFree ? (
-            <span className="text-sm font-semibold text-neutral-100">
-              {t("common.free")}
-            </span>
-          ) : game.price ? (
-            <span className="flex items-baseline gap-2">
-              {game.price.discountPct > 0 && (
-                <>
-                  <span className="text-xs text-neutral-500 line-through">
-                    {formatPrice(
-                      { ...game.price, final: game.price.initial },
-                      locale,
-                    )}
-                  </span>
-                  <span className="rounded bg-[#fbbf24]/15 px-1.5 py-0.5 text-xs font-bold text-[#fbbf24]">
-                    -{game.price.discountPct}%
-                  </span>
-                </>
-              )}
-              <span className="text-sm font-semibold text-neutral-100">
-                {formatPrice(game.price, locale)}
+      {/* 자연문 요약 (SEO 본문 + 애드센스 승인용 텍스트) */}
+      <section className="mb-6">
+        <h2 className="mb-2 text-lg font-semibold text-neutral-200">
+          {t("detail.aboutHeading")}
+        </h2>
+        <p className="leading-relaxed text-neutral-300">{summary}</p>
+        {genreLabels.length > 0 && (
+          <p className="mt-3 flex flex-wrap items-center gap-2 text-sm text-neutral-400">
+            <span className="text-neutral-500">{t("detail.genresLabel")}:</span>
+            {genreLabels.map((label) => (
+              <span
+                key={label}
+                className="rounded-full border border-neutral-700 px-2.5 py-0.5 text-xs"
+              >
+                {label}
               </span>
-            </span>
-          ) : (
-            <span className="text-sm text-neutral-500">
-              {t("common.priceUnavailable")}
-            </span>
-          )}
-        </div>
-      )}
+            ))}
+          </p>
+        )}
+      </section>
 
-      <p className="rounded-lg border border-dashed border-neutral-800 px-4 py-3 text-sm text-neutral-500">
-        {t("detail.wip")}
+      {/* 동접 추이 */}
+      <section className="mb-6">
+        <h2 className="mb-2 text-lg font-semibold text-neutral-200">
+          {t("detail.trendHeading")}
+        </h2>
+        {trend.length >= 2 ? (
+          <div className="rounded-lg border border-neutral-800 bg-neutral-900/40 p-3">
+            <TrendChart points={trend} />
+          </div>
+        ) : (
+          <p className="text-sm text-neutral-500">{t("detail.trendEmpty")}</p>
+        )}
+      </section>
+
+      <p className="mb-6 text-xs text-neutral-600">
+        {t("detail.updatedNote", {
+          time: new Date(updatedTimeIso).toISOString().slice(0, 10),
+        })}
       </p>
+
+      <div className="mb-8 flex flex-wrap gap-3 text-sm">
+        <a
+          href={`https://store.steampowered.com/app/${appid}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded-md border border-neutral-700 px-3 py-1.5 text-neutral-300 hover:border-neutral-500"
+        >
+          Steam ↗
+        </a>
+        <Link
+          href="/"
+          className="rounded-md border border-neutral-800 px-3 py-1.5 text-neutral-400 hover:border-neutral-600 hover:text-neutral-200"
+        >
+          ← {t("detail.backHome")}
+        </Link>
+      </div>
+
+      <footer className="border-t border-neutral-900 pt-4 text-xs text-neutral-600">
+        <Link href="/about" className="hover:text-neutral-400">
+          {t("nav.about")}
+        </Link>
+        <span className="mx-2">·</span>
+        <Link href="/privacy" className="hover:text-neutral-400">
+          {t("nav.privacy")}
+        </Link>
+      </footer>
     </main>
   );
 }

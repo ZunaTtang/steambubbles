@@ -60,9 +60,29 @@
     "loadMore": "더 보기 ({count, number})"
   },
   "detail": {
-    "wip": "게임 상세 페이지는 Phase 4에서 구현됩니다.",
+    "home": "홈",
     "backHome": "버블맵으로 돌아가기",
-    "notFound": "게임을 찾을 수 없습니다"
+    "notFound": "게임을 찾을 수 없습니다",
+    "aboutHeading": "게임 정보",
+    "trendHeading": "동접 추이",
+    "trendEmpty": "추이 데이터가 아직 충분히 쌓이지 않았습니다.",
+    "genresLabel": "장르",
+    "metaTitleSuffix": "스팀 동시접속자 수·가격",
+    "metaDescription": "{name} 실시간 스팀 동시 접속자 {players, number}명, 24시간 최고 {peak, number}명. {reviewLabel} · 스팀 동접 순위 {rank}위.",
+    "sPlayers": "《{name}》의 현재 스팀 동시 접속자 수는 {players, number}명입니다.",
+    "sPeak": "최근 24시간 최고 동시 접속자는 {peak, number}명을 기록했습니다.",
+    "sRank": "현재 스팀 전체 동접 순위는 {rank}위입니다.",
+    "sReview": "이용자 평가는 ‘{label}’이며, 리뷰 {count, number}개가 등록되어 있습니다.",
+    "sReviewNone": "아직 이용자 평가가 집계되지 않았습니다.",
+    "sFree": "무료로 플레이할 수 있습니다.",
+    "sPrice": "현재 가격은 {price}입니다.",
+    "sPriceDiscount": "현재 {discount}% 할인 중으로, {initial}에서 {price}로 구매할 수 있습니다.",
+    "sPriceUnavailable": "가격 정보는 일시적으로 제공되지 않습니다.",
+    "updatedNote": "이 정보는 {time} 기준이며 주기적으로 자동 갱신됩니다."
+  },
+  "nav": {
+    "privacy": "개인정보처리방침",
+    "about": "소개"
   },
   "common": {
     "priceUnavailable": "가격 정보 일시 미제공",

@@ -10,6 +10,7 @@ import type {
 import {
   mockGetBubbleSnapshot,
   mockGetGenreOptions,
+  mockGetTrackedAppids,
   mockGetTrend,
 } from "./mock";
 
@@ -70,5 +71,18 @@ export async function getTrend(
     },
     ["trend", String(appid), String(days)],
     { revalidate: REVALIDATE_S, tags: ["trend"] },
+  )();
+}
+
+// generateStaticParams·sitemap용 추적 앱 목록 (Tier maxTier 이하). 30분 캐시.
+export async function getTrackedAppids(maxTier = 2): Promise<number[]> {
+  if (isMockMode()) return mockGetTrackedAppids();
+  return unstable_cache(
+    async () => {
+      const { dbGetTrackedAppids } = await import("./db");
+      return dbGetTrackedAppids(maxTier);
+    },
+    ["tracked-appids", String(maxTier)],
+    { revalidate: 1800, tags: ["apps"] },
   )();
 }

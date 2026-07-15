@@ -271,10 +271,30 @@ export async function dbGetTrend(
   days: number,
 ): Promise<TrendPoint[]> {
   const db = getDb();
-  const since = new Date(Date.now() - days * DAY_MS).toISOString().slice(0, 10);
-  return db
-    .select({ date: playerDaily.date, peak: playerDaily.peak, avg: playerDaily.avg })
-    .from(playerDaily)
-    .where(and(eq(playerDaily.appid, appid), gte(playerDaily.date, since)))
-    .orderBy(asc(playerDaily.date));
+  const since = new Date(Date.now() - days * DAY_MS);
+  // 롤업(player_daily) 잡은 Phase 3 — 그 전까지는 원본 스냅샷을 UTC 일 단위로 집계해
+  // 실데이터 추이를 제공한다 (히스토리가 쌓일수록 채워짐).
+  const dayExpr = sql<string>`to_char(${playerSnapshots.ts} at time zone 'UTC', 'YYYY-MM-DD')`;
+  const rows = await db
+    .select({
+      date: dayExpr,
+      peak: max(playerSnapshots.players),
+      avg: sql<number>`cast(round(avg(${playerSnapshots.players})) as int)`,
+    })
+    .from(playerSnapshots)
+    .where(and(eq(playerSnapshots.appid, appid), gte(playerSnapshots.ts, since)))
+    .groupBy(dayExpr)
+    .orderBy(asc(dayExpr));
+  return rows.map((r) => ({ date: r.date, peak: r.peak ?? 0, avg: r.avg }));
+}
+
+// generateStaticParams·sitemap용 — 추적 중인(Tier maxTier 이하) 앱 목록, 랭크 순
+export async function dbGetTrackedAppids(maxTier = 2): Promise<number[]> {
+  const db = getDb();
+  const rows = await db
+    .select({ appid: apps.appid })
+    .from(apps)
+    .where(lte(apps.tier, maxTier))
+    .orderBy(asc(apps.lastSeenRank));
+  return rows.map((r) => r.appid);
 }
