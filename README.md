@@ -126,17 +126,25 @@ Phase별 세부 체크리스트는 GitHub 이슈로 추적한다.
 
 > 현재 목업 데이터 모드(1,000개 fixture)로 전체 UI가 동작한다. `DATABASE_URL` 설정 시 실데이터로 자동 전환.
 
-### Phase 3 — Tier 2 수집 ([#3](https://github.com/ZunaTtang/steambubbles/issues/3))
+### Phase 4 — 상세 페이지 + SEO ([#4](https://github.com/ZunaTtang/steambubbles/issues/4)) ✅ LIVE (노출 우선으로 Phase 3보다 먼저 진행)
+
+- [x] `/[locale]/game/[id]` 상세 페이지 (자연문 자동 생성 + 추이 + 장르 + Steam 링크)
+- [x] Tier 1~2 사전 생성(generateStaticParams 상위 200) + on-demand ISR
+- [x] ko/x-default hreflang · sitemap.xml · robots.txt · VideoGame JSON-LD · canonical/OG
+- [x] 개인정보처리방침·소개 페이지 (애드센스 승인 요건)
+- [ ] 애드센스 신청 (콘텐츠 축적 후) + 문의 연락처 확정
+
+### Phase 3 — Tier 2 수집 ([#3](https://github.com/ZunaTtang/steambubbles/issues/3)) — 다음 (ko 유입 신호 시)
 
 - [ ] `GetGamesByConcurrentPlayers` 실테스트 → 결과 CLAUDE.md에 기록
 - [ ] 폴링 유니버스 구축 + Tier 2 30분 폴링 (배치 분할 + QStash 체이닝)
-- [ ] 티어 재배정(일 1회) + 롤업/보존 잡
+- [ ] 티어 재배정(일 1회) + 롤업/보존 잡 (→ 상세 페이지 추이 차트 데이터)
 
-### Phase 4 — 상세 페이지 + SEO ([#4](https://github.com/ZunaTtang/steambubbles/issues/4))
+### Phase 5 — 마감 ([#5](https://github.com/ZunaTtang/steambubbles/issues/5))
 
-- [ ] `/[locale]/game/[id]` 상세 페이지 (로케일별 자연문 자동 생성)
-- [ ] Tier 1~2 사전 생성 + on-demand ISR
-- [ ] ko hreflang·sitemap, 애드센스 신청 준비
+- [ ] snapdom 캡처 + 워터마크 / `/[locale]/og` 동적 OG 이미지
+- [ ] Vercel Analytics
+- [ ] 우아한 강등 동작 검증 (store API 장애 시 가격 UI 숨김, 동접 정상)
 
 ### Phase 5 — 마감 ([#5](https://github.com/ZunaTtang/steambubbles/issues/5))
 
