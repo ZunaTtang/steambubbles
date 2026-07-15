@@ -265,9 +265,12 @@ export async function dbGetGenreOptions(locale: Locale): Promise<GenreOption[]> 
   );
   const byId = new Map<number, GenreOption>();
   for (const r of rows) {
+    // 큐레이션 목록(genres.json)에 없는 장르는 제외 — Steam이 게임에 붙이는 소프트웨어
+    // 카테고리(유틸리티·디자인·오디오 등)가 필터에 섞이지 않게 (Wallpaper Engine 등)
+    if (!staticLabels.has(r.id)) continue;
     const existing = byId.get(r.id);
     if (existing && r.locale !== locale) continue;
-    const label = r.label ?? staticLabels.get(r.id) ?? `#${r.id}`;
+    const label = r.label ?? staticLabels.get(r.id)!;
     byId.set(r.id, { id: r.id, label });
   }
   return [...byId.values()];

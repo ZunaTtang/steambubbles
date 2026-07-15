@@ -78,13 +78,16 @@ export class BubbleEngine {
   private simAlpha = ALPHA_REHEAT;
   private destroyed = false;
 
-  // ── 팬/핀치 제스처 상태 (네이티브 포인터 이벤트) ──
+  // ── 팬/핀치/버블드래그 제스처 상태 (네이티브 포인터 이벤트) ──
   private readonly pointers = new Map<number, { x: number; y: number }>();
   private didPan = false;
   private panAccum = 0;
   private pinchDist = 0;
   private pinchMidX = 0;
   private pinchMidY = 0;
+  // 버블 위에서 시작한 드래그 = 해당 버블 이동(맵 팬 아님)
+  private draggingNode: BubbleNode | null = null;
+  private dragPointerId: number | null = null;
 
   constructor(app: Application, host: HTMLElement) {
     this.app = app;
@@ -273,11 +276,49 @@ export class BubbleEngine {
     for (let i = 0; i < list.length; i++) list[i].frame();
   };
 
-  // 팬 직후의 탭은 무시 (didPan은 다음 pointerdown에서 리셋)
+  // 탭 = 선택 (Pixi pointertap). 팬/버블드래그로 많이 움직였으면 무시
   private readonly handleTap = (game: GameBubbleData): void => {
     if (this.didPan) return;
     this.opts?.onSelect(game);
   };
+
+  // 화면 좌표 → 월드 좌표 (팬/줌 반영)
+  private toWorld(clientX: number, clientY: number): { x: number; y: number } {
+    const rect = this.app.canvas.getBoundingClientRect();
+    const s = this.world.scale.x;
+    return {
+      x: (clientX - rect.left - this.world.x) / s,
+      y: (clientY - rect.top - this.world.y) / s,
+    };
+  }
+
+  // 포인터 아래 버블 찾기 (중심 최근접). 없으면 null → 맵 팬
+  private hitTestNode(clientX: number, clientY: number): BubbleNode | null {
+    const { x: wx, y: wy } = this.toWorld(clientX, clientY);
+    let best: BubbleNode | null = null;
+    let bestD2 = Infinity;
+    for (const n of this.nodeList) {
+      const dx = wx - (n.sim.x ?? 0);
+      const dy = wy - (n.sim.y ?? 0);
+      const d2 = dx * dx + dy * dy;
+      const r = n.radius;
+      if (d2 <= r * r && d2 < bestD2) {
+        bestD2 = d2;
+        best = n;
+      }
+    }
+    return best;
+  }
+
+  // 버블 드래그 해제 — 고정을 풀어 다시 물리 흐름에 합류시킨다 (선택은 Pixi pointertap 소관)
+  private releaseDrag(): void {
+    const node = this.draggingNode;
+    this.draggingNode = null;
+    this.dragPointerId = null;
+    if (!node) return;
+    node.sim.fx = null;
+    node.sim.fy = null;
+  }
 
   private readonly onPointerDown = (e: PointerEvent): void => {
     try {
@@ -289,7 +330,18 @@ export class BubbleEngine {
     if (this.pointers.size === 1) {
       this.didPan = false;
       this.panAccum = 0;
+      // 버블 위에서 시작 → 그 버블 드래그, 배경에서 시작 → 맵 팬
+      const node = this.hitTestNode(e.clientX, e.clientY);
+      if (node) {
+        this.draggingNode = node;
+        this.dragPointerId = e.pointerId;
+        node.sim.fx = node.sim.x;
+        node.sim.fy = node.sim.y;
+        this.simAlpha = Math.max(this.simAlpha, ALPHA_REHEAT);
+      }
     } else if (this.pointers.size === 2) {
+      // 핀치 시작 — 진행 중이던 버블 드래그는 해제
+      this.releaseDrag();
       const [a, b] = [...this.pointers.values()];
       this.pinchDist = Math.hypot(a.x - b.x, a.y - b.y);
       this.pinchMidX = (a.x + b.x) / 2;
@@ -301,14 +353,20 @@ export class BubbleEngine {
     const p = this.pointers.get(e.pointerId);
     if (!p) return;
     if (this.pointers.size === 1) {
-      // 배경 드래그 = 팬
       const dx = e.clientX - p.x;
       const dy = e.clientY - p.y;
       p.x = e.clientX;
       p.y = e.clientY;
       this.panAccum += Math.abs(dx) + Math.abs(dy);
       if (this.panAccum > PAN_THRESHOLD) this.didPan = true;
-      if (this.didPan) {
+      if (this.draggingNode) {
+        // 버블 드래그 — 노드를 포인터 월드 좌표에 고정 (collide가 이웃을 밀어냄)
+        const w = this.toWorld(e.clientX, e.clientY);
+        this.draggingNode.sim.fx = w.x;
+        this.draggingNode.sim.fy = w.y;
+        this.simAlpha = Math.max(this.simAlpha, 0.3);
+      } else if (this.didPan) {
+        // 배경 드래그 = 맵 팬
         this.world.x += dx;
         this.world.y += dy;
       }
@@ -338,6 +396,10 @@ export class BubbleEngine {
   };
 
   private readonly onPointerEnd = (e: PointerEvent): void => {
+    // 드래그 중이던 포인터가 떼어지면 고정 해제 (탭이면 Pixi pointertap이 선택 처리)
+    if (this.draggingNode && e.pointerId === this.dragPointerId) {
+      this.releaseDrag();
+    }
     this.pointers.delete(e.pointerId);
     if (this.pointers.size < 2) this.pinchDist = 0;
   };

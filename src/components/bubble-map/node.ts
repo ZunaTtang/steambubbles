@@ -94,6 +94,7 @@ export class BubbleNode {
     this.hit = new Circle(0, 0, this.r);
     this.container.hitArea = this.hit;
     // dynamic: 커서가 멈춰 있어도 버블이 요동으로 커서 밑을 드나들 때 hover 동기화 (CLAUDE.md 5-1 상시 유동)
+    // 탭=선택(Pixi pointertap, 검증됨) / 드래그=버블 이동(엔진 네이티브 포인터)로 분리
     this.container.eventMode = "dynamic";
     this.container.cursor = "pointer";
     this.container.on("pointerover", () => this.setHovered(true));
@@ -101,6 +102,11 @@ export class BubbleNode {
     this.container.on("pointertap", () => onTap(this.game));
 
     this.updateBadge();
+  }
+
+  // 히트 테스트용 현재 시각 반경 (월드 좌표계)
+  get radius(): number {
+    return this.r;
   }
 
   get isDead(): boolean {
