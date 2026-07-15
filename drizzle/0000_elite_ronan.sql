@@ -16,6 +16,13 @@ CREATE TABLE "apps" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "circuit_state" (
+	"domain" text PRIMARY KEY NOT NULL,
+	"failures" integer DEFAULT 0 NOT NULL,
+	"open_until" timestamp with time zone,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "genre_i18n" (
 	"genre_id" integer NOT NULL,
 	"locale" text NOT NULL,
@@ -63,6 +70,7 @@ CREATE TABLE "prices" (
 	"cc" text NOT NULL,
 	"currency" text NOT NULL,
 	"price" integer NOT NULL,
+	"price_initial" integer NOT NULL,
 	"discount_percent" smallint DEFAULT 0 NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "prices_appid_cc_pk" PRIMARY KEY("appid","cc")

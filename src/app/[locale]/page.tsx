@@ -1,21 +1,47 @@
-import { getTranslations, setRequestLocale } from "next-intl/server";
+import { cookies } from "next/headers";
+import { hasLocale } from "next-intl";
+import { setRequestLocale } from "next-intl/server";
+import {
+  ALL_LOCALES,
+  CURRENCY_COOKIE,
+  DEFAULT_CURRENCY,
+  DEFAULT_LOCALE,
+  type Locale,
+} from "@/i18n/locales";
+import { getBubbleSnapshot, getGenreOptions } from "@/lib/data";
+import type { Currency } from "@/lib/types";
+import BubbleApp from "@/components/app/BubbleApp";
 
 type Props = {
   params: Promise<{ locale: string }>;
 };
 
+// 통화는 SSR이 쿠키에서 읽는다 (CLAUDE.md 7) — 정적 프리렌더 금지
+export const dynamic = "force-dynamic";
+
 export default async function HomePage({ params }: Props) {
-  const { locale } = await params;
-  setRequestLocale(locale);
-  const t = await getTranslations("home");
+  const { locale: rawLocale } = await params;
+  setRequestLocale(rawLocale);
+  const locale: Locale = hasLocale(ALL_LOCALES, rawLocale)
+    ? rawLocale
+    : DEFAULT_LOCALE;
+
+  const cookieCurrency = (await cookies()).get(CURRENCY_COOKIE)?.value;
+  const currency: Currency =
+    cookieCurrency === "KRW" || cookieCurrency === "USD"
+      ? cookieCurrency
+      : DEFAULT_CURRENCY[locale];
+
+  const [snapshot, genres] = await Promise.all([
+    getBubbleSnapshot({ period: "24h", currency, locale }),
+    getGenreOptions(locale),
+  ]);
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-8 text-center">
-      <h1 className="text-4xl font-bold tracking-tight">{t("heading")}</h1>
-      <p className="max-w-xl text-neutral-400">{t("tagline")}</p>
-      <p className="mt-4 rounded-full border border-neutral-700 px-4 py-1.5 text-sm text-neutral-500">
-        {t("status")}
-      </p>
-    </main>
+    <BubbleApp
+      initialSnapshot={snapshot}
+      genres={genres}
+      initialCurrency={currency}
+    />
   );
 }

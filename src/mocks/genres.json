@@ -1,0 +1,14 @@
+[
+  { "id": 1, "labels": { "ko": "액션", "en": "Action" } },
+  { "id": 2, "labels": { "ko": "전략", "en": "Strategy" } },
+  { "id": 3, "labels": { "ko": "RPG", "en": "RPG" } },
+  { "id": 4, "labels": { "ko": "캐주얼", "en": "Casual" } },
+  { "id": 9, "labels": { "ko": "레이싱", "en": "Racing" } },
+  { "id": 18, "labels": { "ko": "스포츠", "en": "Sports" } },
+  { "id": 23, "labels": { "ko": "인디", "en": "Indie" } },
+  { "id": 25, "labels": { "ko": "어드벤처", "en": "Adventure" } },
+  { "id": 28, "labels": { "ko": "시뮬레이션", "en": "Simulation" } },
+  { "id": 29, "labels": { "ko": "MMO", "en": "Massively Multiplayer" } },
+  { "id": 37, "labels": { "ko": "무료 플레이", "en": "Free to Play" } },
+  { "id": 70, "labels": { "ko": "얼리 액세스", "en": "Early Access" } }
+]

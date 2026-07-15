@@ -80,8 +80,9 @@ export const prices = pgTable(
       .references(() => apps.appid),
     cc: text("cc").notNull(),
     currency: text("currency").notNull(),
-    // Steam price_overview.final — 최소 화폐 단위(센트 등)
+    // Steam price_overview — 최소 화폐 단위(센트 등). price=final, priceInitial=할인 전 정가
     price: integer("price").notNull(),
+    priceInitial: integer("price_initial").notNull(),
     discountPercent: smallint("discount_percent").notNull().default(0),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
@@ -151,4 +152,16 @@ export const jobRuns = pgTable("job_runs", {
   ts: timestamp("ts", { withTimezone: true }).notNull().defaultNow(),
   status: text("status").notNull(),
   rows: integer("rows").notNull().default(0),
+});
+
+// 서킷브레이커 상태 (CLAUDE.md 3) — 도메인별 연속 실패/오픈 시각.
+// 서버리스는 인스턴스 메모리가 인보케이션마다 초기화되므로, 브레이커가
+// 실제로 "잡 일시 중단"으로 기능하려면 상태를 DB에 지속화해야 한다.
+export const circuitState = pgTable("circuit_state", {
+  domain: text("domain").primaryKey(), // "api" | "store"
+  failures: integer("failures").notNull().default(0),
+  openUntil: timestamp("open_until", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
