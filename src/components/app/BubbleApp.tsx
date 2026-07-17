@@ -11,8 +11,9 @@ import type {
   GenreOption,
   Period,
   RangeKey,
+  SnapshotScope,
 } from "@/lib/types";
-import { RANGE_BOUNDS } from "@/lib/types";
+import { RANGE_BOUNDS, TOP_SCOPE_MAX_RANK } from "@/lib/types";
 import { useFavorites, useSettings } from "./hooks";
 import TopBar from "./TopBar";
 import GameModal from "./GameModal";
@@ -54,6 +55,9 @@ export default function BubbleApp({
 
   const [period, setPeriod] = useState<Period>("24h");
   const [range, setRange] = useState<RangeKey>("top100");
+  // top = SSR 초기 스냅샷(상위 1,000). 딥 밴드(1,001~)나 뽑기를 쓰는 순간 deep(3,000)으로
+  // 승급해 재조회 — 초기 페이로드는 가볍게, 딥 데이터는 필요할 때만 (Tier 3 오픈)
+  const [scope, setScope] = useState<SnapshotScope>("top");
   const [selectedGenres, setSelectedGenres] = useState<Set<number>>(
     () => new Set(),
   );
@@ -68,14 +72,15 @@ export default function BubbleApp({
   const { settings, update: updateSettings } = useSettings();
   const { favorites, toggle: toggleFavorite } = useFavorites();
 
-  // 현재 snapshot이 실제로 대표하는 조합. 첫 렌더는 서버 initialSnapshot(24h·initialCurrency)이므로
+  // 현재 snapshot이 실제로 대표하는 조합. 첫 렌더는 서버 initialSnapshot(24h·initialCurrency·top)이므로
   // 이 값과 일치하면 재조회를 건너뛴다 — StrictMode 이중 마운트/오류 후 되돌림에도 값 기반이라 안전.
-  const appliedRef = useRef({ period, currency, locale });
+  const appliedRef = useRef({ period, currency, locale, scope });
   useEffect(() => {
     if (
       appliedRef.current.period === period &&
       appliedRef.current.currency === currency &&
-      appliedRef.current.locale === locale
+      appliedRef.current.locale === locale &&
+      appliedRef.current.scope === scope
     ) {
       return;
     }
@@ -83,9 +88,12 @@ export default function BubbleApp({
     const reqPeriod = period;
     const reqCurrency = currency;
     const reqLocale = locale;
+    const reqScope = scope;
     setLoading(true);
     fetch(
-      `/api/bubbles?period=${reqPeriod}&currency=${reqCurrency}&locale=${reqLocale}`,
+      `/api/bubbles?period=${reqPeriod}&currency=${reqCurrency}&locale=${reqLocale}${
+        reqScope === "deep" ? "&scope=deep" : ""
+      }`,
       { signal: ctrl.signal },
     )
       .then((res) =>
@@ -102,22 +110,36 @@ export default function BubbleApp({
           period: reqPeriod,
           currency: reqCurrency,
           locale: reqLocale,
+          scope: reqScope,
         };
         setLoading(false);
       })
       .catch((err: unknown) => {
         if ((err as Error).name === "AbortError") return; // 재요청/언마운트 — 정상
-        // 실패: 기간/통화 선택을 실제 표시 중인 데이터로 되돌려 오라벨(잘못된 라벨) 방지
+        // 실패: 기간/통화/스코프 선택을 실제 표시 중인 데이터로 되돌려 오라벨 방지
         setLoading(false);
         setPeriod(appliedRef.current.period);
         setCurrency(appliedRef.current.currency);
+        setScope(appliedRef.current.scope);
       });
     return () => ctrl.abort();
-  }, [period, currency, locale]);
+  }, [period, currency, locale, scope]);
 
   // 통화 변경은 낙관적 UI만 — 쿠키는 재조회 성공 시 기록한다
   const changeCurrency = useCallback((next: Currency) => {
     setCurrency(next);
+  }, []);
+
+  // 딥 밴드(1,001~) 선택 시 deep 스냅샷으로 승급 (한 번 승급하면 유지)
+  const changeRange = useCallback((next: RangeKey) => {
+    setRange(next);
+    if (RANGE_BOUNDS[next][1] > TOP_SCOPE_MAX_RANK) setScope("deep");
+  }, []);
+
+  // 뽑기는 전체 풀에서 추첨하는 게 정직 — 열 때 deep 로드를 함께 트리거
+  const openDraw = useCallback(() => {
+    setDrawOpen(true);
+    setScope("deep");
   }, []);
 
   // updatedAt는 클라이언트 로컬 타임존으로만 렌더 — 서버(UTC)에서 포맷해 굳으면 KST 유저에게 오시각 표시
@@ -179,7 +201,7 @@ export default function BubbleApp({
           period={period}
           onPeriodChange={setPeriod}
           range={range}
-          onRangeChange={setRange}
+          onRangeChange={changeRange}
           genres={genres}
           selectedGenres={selectedGenres}
           onToggleGenre={toggleGenre}
@@ -222,7 +244,7 @@ export default function BubbleApp({
           )}
           {/* 버블 뽑기 FAB — 재방문 콘텐츠 (해자 ③ 공유 포맷). 맵 좌하단, 우하단 리셋 버튼과 대칭 */}
           <button
-            onClick={() => setDrawOpen(true)}
+            onClick={openDraw}
             className="absolute bottom-3 left-3 z-10 flex items-center gap-1.5 rounded-full border border-[#16c784]/50 bg-[#0a0a0f]/80 px-3.5 py-2.5 text-sm font-semibold text-[#16c784] shadow-lg backdrop-blur-sm transition-colors hover:bg-[#16c784]/15 active:scale-95"
           >
             <svg

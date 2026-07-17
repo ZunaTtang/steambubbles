@@ -31,7 +31,9 @@ export async function GET(request: Request) {
   const locale: Locale = hasLocale(ALL_LOCALES, rawLocale)
     ? rawLocale
     : DEFAULT_LOCALE;
+  // deep = 3,000위(Tier 3 포함) — 딥 밴드/뽑기에서 클라이언트가 lazy 로드
+  const scope = searchParams.get("scope") === "deep" ? "deep" : "top";
 
-  const snapshot = await getBubbleSnapshot({ period, currency, locale });
+  const snapshot = await getBubbleSnapshot({ period, currency, locale, scope });
   return Response.json(snapshot, { headers: CACHE_HEADERS });
 }

@@ -42,8 +42,9 @@ function parseAppid(raw: string): number | null {
   return n > 0 && n <= 2_147_483_647 ? n : null;
 }
 
+// deep 스코프 — Tier 3(1,001~3,000위) 게임 상세도 렌더되도록 (top 스냅샷만 보면 404)
 const loadSnapshot = cache((locale: Locale, currency: Currency) =>
-  getBubbleSnapshot({ period: "24h", currency, locale }),
+  getBubbleSnapshot({ period: "24h", currency, locale, scope: "deep" }),
 );
 
 async function loadGame(

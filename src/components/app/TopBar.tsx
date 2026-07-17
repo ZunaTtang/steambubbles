@@ -14,7 +14,7 @@ import type {
   RangeKey,
   SizeBy,
 } from "@/lib/types";
-import { PERIODS, RANGES, RANGE_LABEL_KEY } from "@/lib/types";
+import { PERIODS, RANGES, RANGE_BOUNDS } from "@/lib/types";
 
 const PERIOD_LABEL_KEY: Record<Period, string> = {
   "24h": "period24h",
@@ -71,6 +71,12 @@ export default function TopBar({
   const pathname = usePathname();
   const [searchFocused, setSearchFocused] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // 범위 라벨 — Top 100만 고정 키, 나머지는 구간 템플릿 (Tier 3 오픈으로 13구간 — 키 증식 방지)
+  const rangeLabel = (r: RangeKey) =>
+    r === "top100"
+      ? t("rangeTop100")
+      : t("rangeBand", { lo: RANGE_BOUNDS[r][0], hi: RANGE_BOUNDS[r][1] });
 
   const suggestions = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -290,21 +296,19 @@ export default function TopBar({
       {/* 2행: 범위 / 즐겨찾기 / 장르 칩 — 상시 노출, 모바일에서는 행 전체 가로 스크롤
           (접힘 토글은 필터 발견성을 해쳐 폐기 — 2026-07 모바일 UX 결정) */}
       <div className="flex items-center gap-2 overflow-x-auto px-3 pb-2 [scrollbar-width:none] md:overflow-x-visible md:[scrollbar-width:thin]">
-        <div className="flex shrink-0 overflow-hidden rounded-md border border-neutral-800">
+        {/* 13구간(Tier 3 오픈)이라 칩 대신 셀렉트 — CLAUDE.md 5-1이 예정한 전환 */}
+        <select
+          value={range}
+          onChange={(e) => onRangeChange(e.target.value as RangeKey)}
+          aria-label={t("range")}
+          className="shrink-0 rounded-md border border-neutral-800 bg-neutral-900 px-2 py-1.5 text-xs text-neutral-200 focus:border-neutral-600 focus:outline-none md:py-1"
+        >
           {RANGES.map((r) => (
-            <button
-              key={r}
-              onClick={() => onRangeChange(r)}
-              className={`px-2.5 py-1.5 text-xs whitespace-nowrap transition-colors md:py-1 ${
-                range === r
-                  ? "bg-neutral-700 text-white"
-                  : "text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200"
-              }`}
-            >
-              {t(RANGE_LABEL_KEY[r])}
-            </button>
+            <option key={r} value={r}>
+              {rangeLabel(r)}
+            </option>
           ))}
-        </div>
+        </select>
 
         <button
           onClick={onToggleFavoritesOnly}

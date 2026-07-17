@@ -7,7 +7,7 @@
 
 ## 현재 상태
 
-- **Phase 1~4 프로덕션 라이브.** 10분 주기 자동 동접 수집(top ~1,000) + 버블맵·랭킹 테이블·게임 상세 페이지 + SEO(sitemap·hreflang·JSON-LD)가 무인으로 가동 중.
+- **Phase 1~4 프로덕션 라이브.** 자동 동접 수집(top ~3,000 — Tier 1 10분 · Tier 2 30분 · Tier 3 3시간) + 버블맵·랭킹 테이블·게임 상세 페이지 + SEO(sitemap·hreflang·JSON-LD)가 무인으로 가동 중.
 - **로케일**: `ko`(기본) + `en` 오픈. `ja`/`zh`·유럽어는 동결(트리거 대기).
 - **남은 Launch 작업**: Phase 5(캡처/OG/Analytics), Discord 알림 연결.
 
@@ -93,7 +93,7 @@ src/
   app/[locale]/         # 로케일 라우팅 (ko·en) — 버블맵 홈 · game/[appid] 상세 · about · privacy
   app/sitemap.ts        # 동적 sitemap (홈+정적+게임, 로케일별)   app/robots.ts
   app/api/bubbles/      # 버블맵 스냅샷 API (기간·통화별)   app/api/trend/  게임별 추이 API
-  app/api/cron/         # players-tier1(10분) · players-tier2(30분) · details · universe · maintenance · healthcheck
+  app/api/cron/         # players-tier1(10분) · players-tier2(30분) · players-tier3(3시간) · details · universe · maintenance · healthcheck
   components/bubble-map/ # PixiJS + d3-force 버블맵 렌더러 (탭=선택 / 드래그=버블 이동 / hover=툴팁)
   components/app/       # 상단 바(언어·통화·필터), 모달, 랭킹 테이블, 앱 셸
   lib/                  # types(계약), fetch-util(백오프+서킷브레이커), circuit(DB 지속화), steam, format, site
@@ -136,7 +136,7 @@ scripts/                # 목업 fixture 생성기
 - [x] `GetGamesByConcurrentPlayers` 실테스트(→ Tier 1 1콜 최적화) · CLAUDE.md 기록
 - [x] 유니버스(SteamSpy) + Tier 2 30분 폴링(keyset 배치·체이닝) + 이름/헤더 시드
 - [x] player_daily 롤업 + 45일 보존(maintenance) · tier1=현재 top100 유지
-- [x] 버블맵 **~1,000게임 전범위** 라이브
+- [x] 버블맵 **~3,000게임 전범위** 라이브 (Tier 3 오픈 2026-07 — 딥 밴드 lazy 로드, 유니버스 SteamSpy 3페이지)
 - [ ] (후행) Tier 2 가격·한글명 details 갱신 — QStash 무료 한도상 보류
 
 ### Phase 4 — 상세 페이지 + SEO ([#4](https://github.com/ZunaTtang/steambubbles/issues/4)) ✅ LIVE
@@ -159,5 +159,5 @@ scripts/                # 목업 fixture 생성기
 
 ### 후행 (동결 백로그 — 트리거 전 착공 금지)
 
-Tier 3 오픈, ja/zh 로케일, 유럽어, 세일 감지 트리거, 수익화 전체.
+ja/zh 로케일, 유럽어, 세일 감지 트리거, Tier 3 sitemap 등재, 수익화 전체. (Tier 3 수집·표시는 2026-07 오픈됨)
 해제 트리거는 [CLAUDE.md](./CLAUDE.md) 8번 참조.

@@ -18,7 +18,8 @@ import {
 // insert().onConflictDoUpdate() upsert의 set 절에서는 updatedAt을 반드시 명시적으로 넣을 것
 // — 우아한 강등(stale 판정)이 이 컬럼에 의존한다 (CLAUDE.md 3-3).
 
-// 폴링 유니버스(추적 대상 앱). tier — 1: rank 1~100, 2: 101~1,000, 3: 1,001~3,000(후행)
+// 폴링 유니버스(추적 대상 앱).
+// tier — 1: rank 1~100, 2: 101~1,000, 3: 1,001~3,000(2026-07 오픈), 4: 휴면(유니버스 탈락 — 폴링 제외)
 export const apps = pgTable(
   "apps",
   {

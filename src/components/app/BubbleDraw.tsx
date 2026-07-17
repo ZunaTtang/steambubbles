@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/locales";
 import type { GameBubbleData, RangeKey } from "@/lib/types";
-import { RANGES, RANGE_BOUNDS, RANGE_LABEL_KEY } from "@/lib/types";
+import { RANGES, RANGE_BOUNDS, TOP_SCOPE_MAX_RANK } from "@/lib/types";
 import { formatPlayersFull, formatPrice } from "@/lib/format";
 
 // 버블 뽑기 (CLAUDE.md 5-1) — 순위 범위 내 무작위 1게임 추첨 오버레이.
@@ -220,17 +220,35 @@ export default function BubbleDraw({
     }
   };
 
-  // 프리셋: 전체 + 기존 범위 5종 (칩 활성 판정은 클램프된 실효 구간 기준)
+  const rangeLabel = (r: RangeKey) =>
+    r === "top100"
+      ? tControls("rangeTop100")
+      : tControls("rangeBand", { lo: RANGE_BOUNDS[r][0], hi: RANGE_BOUNDS[r][1] });
+
+  // 프리셋: 전체 + 상위 5구간 + (deep 로드 시) 1,001~최대 묶음 칩.
+  // 13구간 전부는 다이얼로그에 과밀 — 세밀한 구간은 커스텀 입력이 담당
   const presets: { key: string; label: string; bounds: [number, number] }[] = [
     { key: "all", label: t("all"), bounds: [1, maxRank] },
-    ...RANGES.map((r: RangeKey) => ({
+    ...RANGES.slice(0, 5).map((r: RangeKey) => ({
       key: r,
-      label: tControls(RANGE_LABEL_KEY[r]),
+      label: rangeLabel(r),
       bounds: [
         RANGE_BOUNDS[r][0],
         Math.min(RANGE_BOUNDS[r][1], maxRank),
       ] as [number, number],
     })),
+    ...(maxRank > TOP_SCOPE_MAX_RANK
+      ? [
+          {
+            key: "deep",
+            label: tControls("rangeBand", {
+              lo: TOP_SCOPE_MAX_RANK + 1,
+              hi: maxRank,
+            }),
+            bounds: [TOP_SCOPE_MAX_RANK + 1, maxRank] as [number, number],
+          },
+        ]
+      : []),
   ];
 
   const clampRank = (v: number) =>

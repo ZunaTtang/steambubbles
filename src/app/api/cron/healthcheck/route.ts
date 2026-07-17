@@ -14,6 +14,7 @@ export const dynamic = "force-dynamic";
 
 const SNAPSHOT_MAX_AGE_MS = 60 * 60_000; // Tier 1 스냅샷 최근 1시간
 const PRICE_MAX_AGE_MS = 3 * 24 * 60 * 60_000; // 가격 갱신 최근 3일
+const TIER3_MAX_AGE_MS = 7 * 60 * 60_000; // Tier 3 폴링(3h 주기) — 2회 연속 누락 감지
 
 interface Check {
   name: string;
@@ -61,7 +62,30 @@ export async function POST(req: NextRequest) {
       checks.push({ name: "tier1-job", ok: true, detail: "정상" });
     }
 
-    // (2) prices 테이블이 비어있지 않다면 3일 내 갱신이 있는가
+    // (2) players-tier3 잡이 최근 7시간 내 성공했는가 (3h 주기 — 2회 연속 누락 시 위반).
+    // 성공 기록이 아예 없으면 스킵 — Tier 3 도입 전/스케줄 생성 전 알림 폭탄 방지 (소프트 도입)
+    const t3Rows = await db
+      .select({ latest: max(jobRuns.ts) })
+      .from(jobRuns)
+      .where(and(eq(jobRuns.job, "players-tier3"), eq(jobRuns.status, "ok")));
+    const latestT3 = t3Rows[0]?.latest ? new Date(t3Rows[0].latest).getTime() : null;
+    if (latestT3 === null) {
+      checks.push({
+        name: "tier3-job",
+        ok: true,
+        detail: "players-tier3 성공 기록 없음 — 스킵 (도입 전)",
+      });
+    } else if (now - latestT3 > TIER3_MAX_AGE_MS) {
+      checks.push({
+        name: "tier3-job",
+        ok: false,
+        detail: `마지막 성공 ${new Date(latestT3).toISOString()} — 7시간 초과`,
+      });
+    } else {
+      checks.push({ name: "tier3-job", ok: true, detail: "정상" });
+    }
+
+    // (3) prices 테이블이 비어있지 않다면 3일 내 갱신이 있는가
     const priceRows = await db
       .select({ cnt: count(), latest: max(prices.updatedAt) })
       .from(prices);

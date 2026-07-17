@@ -5,6 +5,7 @@ import type {
   Currency,
   GenreOption,
   Period,
+  SnapshotScope,
   TrendPoint,
 } from "@/lib/types";
 import {
@@ -25,7 +26,12 @@ export interface GetSnapshotOptions {
   period: Period;
   currency: Currency;
   locale: Locale;
+  // top(기본) = 상위 1,000 — SSR 초기 페이로드 보호. deep = 3,000(Tier 3 포함),
+  // 딥 밴드 선택·뽑기 등에서 클라이언트가 lazy 로드 (CLAUDE.md 3-2 Tier 3 오픈)
+  scope?: SnapshotScope;
 }
+
+const SCOPE_MAX_RANK: Record<SnapshotScope, number> = { top: 1000, deep: 3000 };
 
 // 페이지는 통화 쿠키 때문에 force-dynamic이지만, 데이터 조립까지 매 요청 실행하면
 // Neon이 트래픽마다 깨어난다 (CLAUDE.md 4-3 ISR·비용 원칙 위반). DB 경로만 데이터 레이어
@@ -37,12 +43,18 @@ export async function getBubbleSnapshot(
 ): Promise<BubbleSnapshot> {
   if (isMockMode()) return mockGetBubbleSnapshot(opts);
   const { period, currency, locale } = opts;
+  const scope = opts.scope ?? "top";
   return unstable_cache(
     async () => {
       const { dbGetBubbleSnapshot } = await import("./db");
-      return dbGetBubbleSnapshot(opts);
+      return dbGetBubbleSnapshot({
+        period,
+        currency,
+        locale,
+        maxRank: SCOPE_MAX_RANK[scope],
+      });
     },
-    ["bubble-snapshot", period, currency, locale],
+    ["bubble-snapshot", period, currency, locale, scope],
     { revalidate: REVALIDATE_S, tags: ["bubbles"] },
   )();
 }
