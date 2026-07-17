@@ -14,18 +14,12 @@ import type {
   RangeKey,
   SizeBy,
 } from "@/lib/types";
-import { PERIODS, RANGES } from "@/lib/types";
+import { PERIODS, RANGES, RANGE_LABEL_KEY } from "@/lib/types";
 
 const PERIOD_LABEL_KEY: Record<Period, string> = {
   "24h": "period24h",
   "7d": "period7d",
   "30d": "period30d",
-};
-
-const RANGE_LABEL_KEY: Record<RangeKey, string> = {
-  top100: "rangeTop100",
-  "101-300": "range101_300",
-  "301-1000": "range301_1000",
 };
 
 interface TopBarProps {
@@ -77,8 +71,6 @@ export default function TopBar({
   const pathname = usePathname();
   const [searchFocused, setSearchFocused] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  // 모바일: 필터 행(범위/장르/즐겨찾기) 접힘 (CLAUDE.md 5-1)
-  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const suggestions = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -112,7 +104,7 @@ export default function TopBar({
               role="tab"
               aria-selected={period === p}
               onClick={() => onPeriodChange(p)}
-              className={`px-2.5 py-1 text-xs transition-colors ${
+              className={`px-2.5 py-1.5 text-xs transition-colors md:py-1 ${
                 period === p
                   ? "bg-neutral-700 text-white"
                   : "text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200"
@@ -131,7 +123,7 @@ export default function TopBar({
             onFocus={() => setSearchFocused(true)}
             onBlur={() => setSearchFocused(false)}
             placeholder={t("searchPlaceholder")}
-            className="w-full rounded-md border border-neutral-800 bg-neutral-900 px-2.5 py-1 text-sm text-neutral-200 placeholder:text-neutral-500 focus:border-neutral-600 focus:outline-none"
+            className="w-full rounded-md border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 text-sm text-neutral-200 placeholder:text-neutral-500 focus:border-neutral-600 focus:outline-none md:py-1"
           />
           {showDropdown && (
             <ul className="absolute left-0 right-0 top-full z-40 mt-1 overflow-hidden rounded-md border border-neutral-800 bg-neutral-900 shadow-xl">
@@ -159,28 +151,6 @@ export default function TopBar({
           )}
         </div>
 
-        {/* 모바일 전용: 필터 행 접기/펴기 */}
-        <button
-          onClick={() => setFiltersOpen((v) => !v)}
-          aria-expanded={filtersOpen}
-          aria-label={t("filters")}
-          className={`rounded-md border px-2 py-1 text-sm md:hidden ${
-            filtersOpen
-              ? "border-neutral-600 text-neutral-200"
-              : "border-neutral-800 text-neutral-400"
-          }`}
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 16 16"
-            fill="currentColor"
-            aria-hidden="true"
-          >
-            <path d="M1 3h14v1.5H1V3zm2.5 4.5h9V9h-9V7.5zM6 12h4v1.5H6V12z" />
-          </svg>
-        </button>
-
         {routing.locales.length > 1 && (
           <div
             className="flex shrink-0 overflow-hidden rounded-md border border-neutral-800"
@@ -192,7 +162,7 @@ export default function TopBar({
                 key={l}
                 onClick={() => router.replace(pathname, { locale: l })}
                 aria-pressed={locale === l}
-                className={`px-2 py-1 text-xs uppercase transition-colors ${
+                className={`px-2 py-1.5 text-xs uppercase transition-colors md:py-1 ${
                   locale === l
                     ? "bg-neutral-700 text-white"
                     : "text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200"
@@ -208,7 +178,7 @@ export default function TopBar({
           <button
             onClick={() => setSettingsOpen((v) => !v)}
             aria-expanded={settingsOpen}
-            className={`rounded-md border px-2.5 py-1 text-xs ${
+            className={`rounded-md border px-2.5 py-1.5 text-xs md:py-1 ${
               settingsOpen
                 ? "border-neutral-600 text-neutral-200"
                 : "border-neutral-800 text-neutral-400 hover:text-neutral-200"
@@ -317,18 +287,15 @@ export default function TopBar({
         </div>
       </div>
 
-      {/* 2행: 범위 / 즐겨찾기 / 장르 칩 — 모바일에서는 접힘 */}
-      <div
-        className={`${
-          filtersOpen ? "flex" : "hidden"
-        } items-center gap-2 px-3 pb-2 md:flex`}
-      >
+      {/* 2행: 범위 / 즐겨찾기 / 장르 칩 — 상시 노출, 모바일에서는 행 전체 가로 스크롤
+          (접힘 토글은 필터 발견성을 해쳐 폐기 — 2026-07 모바일 UX 결정) */}
+      <div className="flex items-center gap-2 overflow-x-auto px-3 pb-2 [scrollbar-width:none] md:overflow-x-visible md:[scrollbar-width:thin]">
         <div className="flex shrink-0 overflow-hidden rounded-md border border-neutral-800">
           {RANGES.map((r) => (
             <button
               key={r}
               onClick={() => onRangeChange(r)}
-              className={`px-2.5 py-1 text-xs whitespace-nowrap transition-colors ${
+              className={`px-2.5 py-1.5 text-xs whitespace-nowrap transition-colors md:py-1 ${
                 range === r
                   ? "bg-neutral-700 text-white"
                   : "text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200"
@@ -342,7 +309,7 @@ export default function TopBar({
         <button
           onClick={onToggleFavoritesOnly}
           aria-pressed={favoritesOnly}
-          className={`shrink-0 rounded-md border px-2.5 py-1 text-xs whitespace-nowrap ${
+          className={`shrink-0 rounded-md border px-2.5 py-1.5 text-xs whitespace-nowrap md:py-1 ${
             favoritesOnly
               ? "border-[#fbbf24]/60 bg-[#fbbf24]/10 text-[#fbbf24]"
               : "border-neutral-800 text-neutral-400 hover:text-neutral-200"
@@ -351,13 +318,14 @@ export default function TopBar({
           ★ {t("favoritesOnly")}
         </button>
 
+        {/* 모바일: 바깥 행이 하나의 스크롤 영역 (중첩 스크롤 회피) / md+: 장르만 별도 스크롤 */}
         <div
-          className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:thin]"
+          className="flex items-center gap-1.5 md:min-w-0 md:flex-1 md:overflow-x-auto md:[scrollbar-width:thin]"
           aria-label={t("genres")}
         >
           <button
             onClick={onClearGenres}
-            className={`shrink-0 rounded-full border px-2.5 py-1 text-xs whitespace-nowrap ${
+            className={`shrink-0 rounded-full border px-2.5 py-1.5 text-xs whitespace-nowrap md:py-1 ${
               selectedGenres.size === 0
                 ? "border-[#16c784]/60 bg-[#16c784]/10 text-[#16c784]"
                 : "border-neutral-800 text-neutral-400 hover:text-neutral-200"
@@ -372,7 +340,7 @@ export default function TopBar({
                 key={g.id}
                 onClick={() => onToggleGenre(g.id)}
                 aria-pressed={active}
-                className={`shrink-0 rounded-full border px-2.5 py-1 text-xs whitespace-nowrap ${
+                className={`shrink-0 rounded-full border px-2.5 py-1.5 text-xs whitespace-nowrap md:py-1 ${
                   active
                     ? "border-[#16c784]/60 bg-[#16c784]/10 text-[#16c784]"
                     : "border-neutral-800 text-neutral-400 hover:text-neutral-200"

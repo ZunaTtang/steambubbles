@@ -1,4 +1,12 @@
-import { Circle, Container, Graphics, Sprite, Text, type Texture } from "pixi.js";
+import {
+  Circle,
+  Container,
+  Graphics,
+  Sprite,
+  Text,
+  type FederatedPointerEvent,
+  type Texture,
+} from "pixi.js";
 import type { SimulationNodeDatum } from "d3-force";
 import type { GameBubbleData } from "@/lib/types";
 import { formatPlayers } from "@/lib/format";
@@ -28,10 +36,37 @@ const TEXT_SHADOW = {
 };
 const RANK_FILL = 0xa7b4c4; // 순위는 흐린 회색 (동접 수보다 덜 강조)
 
-// 반경 대비 글자수(~r/4)로 자르고 말줄임
-function abbreviate(name: string, r: number): string {
-  const max = Math.max(3, Math.floor(r / 4));
-  return name.length <= max ? name : `${name.slice(0, Math.max(2, max - 1))}…`;
+// CJK 전각(한글·한자·가나·전각기호) ≈ 1em, 그 외 ≈ 0.58em 근사 폭
+const CJK_RE =
+  /[ᄀ-ᇿ⺀-鿿가-힣豈-﫿＀-｠　-〿]/;
+
+function estTextWidth(text: string, fs: number): number {
+  let units = 0;
+  for (const ch of text) units += CJK_RE.test(ch) ? 1 : 0.58;
+  return units * fs;
+}
+
+// 픽셀 폭 기준으로 자르고 말줄임 — 글자수 기준은 전각 문자에서 원 밖으로 넘쳐
+// 이웃 버블에 가려진다(모바일 "문자 끊김"). 원 내부 chord 폭에 맞춘다.
+function fitText(text: string, fs: number, maxW: number): string {
+  if (estTextWidth(text, fs) <= maxW) return text;
+  const ellipsisW = 0.7 * fs;
+  let w = 0;
+  let out = "";
+  for (const ch of text) {
+    const cw = (CJK_RE.test(ch) ? 1 : 0.58) * fs;
+    if (w + cw + ellipsisW > maxW) break;
+    out += ch;
+    w += cw;
+  }
+  return out.length === 0 ? "…" : `${out.trimEnd()}…`;
+}
+
+// 줄 중심 y(r 배수)에 놓인 텍스트가 원 안에 들어가는 최대 가로 폭 (여백 6%)
+function chordWidth(r: number, yFactor: number, fs: number): number {
+  const yEdge = Math.abs(yFactor * r) + fs * 0.5;
+  if (yEdge >= r) return r * 0.5; // 이론상 도달 불가 — 방어
+  return 2 * Math.sqrt(r * r - yEdge * yEdge) * 0.94;
 }
 
 function clampInt(v: number, min: number, max: number): number {
@@ -78,6 +113,9 @@ export class BubbleNode {
   private color: number;
   private optShowName: boolean;
   private optShowStats: boolean; // 동접 수·순위 표시 토글
+  // 현재 월드 줌 — LOD·폰트를 화면상 반경(r×zoom) 기준으로 판정 (semantic zoom).
+  // 텍스트는 1/zoom 카운터 스케일로 화면 픽셀 크기 그대로 래스터 → 줌인해도 선명
+  private zoom = 1;
   private hovered = false;
   private gfxDirty = true;
   private dead = false;
@@ -90,6 +128,7 @@ export class BubbleNode {
     color: number,
     showName: boolean,
     showStats: boolean,
+    hoverCapable: boolean,
     onTap: (game: GameBubbleData) => void,
     onHover: (game: GameBubbleData, hovered: boolean) => void,
   ) {
@@ -108,14 +147,17 @@ export class BubbleNode {
     this.hit = new Circle(0, 0, this.r);
     this.container.hitArea = this.hit;
     // dynamic: 커서가 멈춰 있어도 버블이 요동으로 커서 밑을 드나들 때 hover 동기화 (CLAUDE.md 5-1 상시 유동)
+    // — hover 개념이 없는 터치 전용 기기는 static으로 매 프레임 히트테스트 비용 제거 (수백 노드 시 핀치 프레임 드랍 방지)
     // 탭=선택(Pixi pointertap) / 드래그=버블 이동(엔진 네이티브) / hover=툴팁(엔진→React) 분리
-    this.container.eventMode = "dynamic";
+    this.container.eventMode = hoverCapable ? "dynamic" : "static";
     this.container.cursor = "pointer";
-    this.container.on("pointerover", () => {
+    this.container.on("pointerover", (e: FederatedPointerEvent) => {
+      if (e.pointerType === "touch") return; // 터치엔 hover 없음 — 탭=모달이 대체 (툴팁 눌어붙음 방지)
       this.setHovered(true);
       onHover(this.game, true);
     });
-    this.container.on("pointerout", () => {
+    this.container.on("pointerout", (e: FederatedPointerEvent) => {
+      if (e.pointerType === "touch") return;
       this.setHovered(false);
       onHover(this.game, false);
     });
@@ -166,6 +208,13 @@ export class BubbleNode {
       this.sim.targetR = target;
       this.gfxDirty = true;
     }
+  }
+
+  // 엔진이 양자화된 줌 스텝에서만 호출 (LOD_ZOOM_STEP) — 핀치 중 매 프레임 재래스터 방지
+  setZoom(z: number): void {
+    if (Math.abs(z - this.zoom) < 0.001) return;
+    this.zoom = z;
+    this.gfxDirty = true;
   }
 
   // 텍스처 지연 도착 — 노드가 살아 있으면 부착 (텍스처는 공유 캐시 소유)
@@ -238,12 +287,17 @@ export class BubbleNode {
     }
     this.hit.radius = Math.max(r + (discount > 0 ? 3 : 0), 6);
 
-    // ── LOD: 이름 / 현재 동접 수 / 순위 (점유율은 버블에 표시하지 않음) ──
-    const showName = this.optShowName && r >= LOD_NAME_MIN_R;
-    const showCount = this.optShowStats && r >= LOD_COUNT_MIN_R;
-    const showRank = this.optShowStats && r >= LOD_RANK_MIN_R;
+    // ── LOD: 이름 / 현재 동접 수 / 순위 — **화면상 반경(sr)** 기준 판정 (semantic zoom).
+    // 줌인하면 작은 버블도 임계를 넘어 이름이 나타난다 (딥 랭크 뷰의 탐색 문법)
+    const sr = r * this.zoom;
+    const showName = this.optShowName && sr >= LOD_NAME_MIN_R;
+    const showCount = this.optShowStats && sr >= LOD_COUNT_MIN_R;
+    const showRank = this.optShowStats && sr >= LOD_RANK_MIN_R;
+    const layout =
+      LAYOUT[(showName ? 1 : 0) + (showCount ? 1 : 0) + (showRank ? 1 : 0)];
 
-    // 표시할 줄을 위→아래 순으로 수집 (이름 → 동접 → 순위)
+    // 표시할 줄을 위→아래 순으로 수집 (이름 → 동접 → 순위).
+    // fs는 화면 픽셀 단위 — 텍스트 객체에 1/zoom 스케일을 걸어 그대로 화면 크기가 된다
     const lines: {
       line: TextLine;
       text: string;
@@ -251,10 +305,12 @@ export class BubbleNode {
       fill: number;
     }[] = [];
     if (showName) {
+      // 이름은 항상 첫 줄 — 그 줄의 chord 폭(화면 기준)에 맞춰 자른다
+      const fs = clampInt(sr * 0.2, 9, 18);
       lines.push({
         line: this.nameLine,
-        text: abbreviate(this.game.name, r),
-        fs: clampInt(r * 0.2, 9, 18),
+        text: fitText(this.game.name, fs, chordWidth(sr, layout.lineYs[0], fs)),
+        fs,
         fill: 0xffffff,
       });
     }
@@ -262,7 +318,7 @@ export class BubbleNode {
       lines.push({
         line: this.countLine,
         text: formatPlayers(this.game.players), // 핵심 숫자
-        fs: clampInt(r * 0.28, 10, 22),
+        fs: clampInt(sr * 0.28, 10, 22),
         fill: 0xffffff,
       });
     }
@@ -270,12 +326,10 @@ export class BubbleNode {
       lines.push({
         line: this.rankLine,
         text: `#${this.game.rank}`,
-        fs: clampInt(r * 0.18, 8, 15),
+        fs: clampInt(sr * 0.18, 8, 15),
         fill: RANK_FILL,
       });
     }
-
-    const layout = LAYOUT[lines.length];
     // 아트 배치
     if (this.art) {
       const artD = lines.length === 0 ? Math.max((r - 1.5) * 2, 4) : r * layout.artD;
@@ -287,6 +341,7 @@ export class BubbleNode {
     // 텍스트 줄 배치 (없는 줄은 숨김)
     const allLines = [this.nameLine, this.countLine, this.rankLine];
     for (const tl of allLines) if (tl.obj) tl.obj.visible = false;
+    const invZoom = 1 / this.zoom;
     lines.forEach((spec, i) => {
       const tl = spec.line;
       if (!tl.obj) tl.obj = this.makeText(spec.fill);
@@ -298,11 +353,17 @@ export class BubbleNode {
         tl.obj.style.fontSize = spec.fs;
         tl.fs = spec.fs;
       }
+      // 카운터 스케일 — 월드 줌을 상쇄해 fs가 곧 화면 픽셀 크기 (줌인해도 선명)
+      tl.obj.scale.set(invZoom);
       tl.obj.position.set(0, r * layout.lineYs[i]);
       tl.obj.visible = true;
     });
 
-    if (this.badge) this.badge.root.position.set(0, -(r + 12));
+    if (this.badge) {
+      // 뱃지도 화면 크기 고정 — 버블 가장자리 위 화면상 12px 지점
+      this.badge.root.scale.set(invZoom);
+      this.badge.root.position.set(0, -(r + 12 * invZoom));
+    }
   }
 
   private makeText(fill: number): Text {

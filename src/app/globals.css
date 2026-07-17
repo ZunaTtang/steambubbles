@@ -19,3 +19,15 @@ body {
   font-family: var(--font-geist-sans), "Apple SD Gothic Neo", "Malgun Gothic",
     sans-serif;
 }
+
+/* ── 버블 뽑기 연출 (components/app/BubbleDraw.tsx) — CS:GO 케이스 오프닝 스타일 ──
+   벨트 감속·니어미스 안착은 JS가 transform transition 2단계로 구동.
+   키프레임은 안착 순간 팝 링(draw-pop)과 결과 등장(draw-fadeup)만 담당 */
+@keyframes draw-pop {
+  0% { transform: scale(0.55); opacity: 0.9; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
+@keyframes draw-fadeup {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}

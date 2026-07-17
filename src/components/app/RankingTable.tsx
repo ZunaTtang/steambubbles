@@ -97,11 +97,12 @@ export default function RankingTable({
     }
   };
 
-  const columns: { key: SortKey; label: string; numeric: boolean }[] = [
+  // cls: 모바일에서 덜 중요한 컬럼 숨김 (가로 스크롤 부담 축소)
+  const columns: { key: SortKey; label: string; numeric: boolean; cls?: string }[] = [
     { key: "rank", label: t("rank"), numeric: true },
     { key: "game", label: t("game"), numeric: false },
     { key: "players", label: t("players"), numeric: true },
-    { key: "peak24h", label: t("peak24h"), numeric: true },
+    { key: "peak24h", label: t("peak24h"), numeric: true, cls: "hidden md:table-cell" },
     { key: "change", label: t("change"), numeric: true },
     ...(priceDataStale
       ? []
@@ -113,12 +114,12 @@ export default function RankingTable({
   ];
 
   return (
-    <section className="px-3 py-6">
+    <section id="ranking" className="px-3 py-6">
       <h2 className="mb-3 text-base font-bold text-neutral-200">
         {t("title")}
       </h2>
       <div className="overflow-x-auto rounded-lg border border-neutral-800">
-        <table className="w-full min-w-[720px] border-collapse text-sm">
+        <table className="w-full min-w-[560px] border-collapse text-sm md:min-w-[720px]">
           <thead>
             <tr className="border-b border-neutral-800 bg-neutral-900/60 text-xs text-neutral-500">
               <th className="w-8 px-2 py-2" aria-label="★" />
@@ -127,7 +128,7 @@ export default function RankingTable({
                   key={col.key}
                   className={`px-2 py-2 font-medium ${
                     col.numeric ? "text-right" : "text-left"
-                  }`}
+                  }${col.cls ? ` ${col.cls}` : ""}`}
                 >
                   <button
                     onClick={() => handleSort(col.key)}
@@ -192,7 +193,7 @@ export default function RankingTable({
                   <td className="px-2 py-1.5 text-right tabular-nums text-neutral-200">
                     {formatPlayersFull(g.players, locale)}
                   </td>
-                  <td className="px-2 py-1.5 text-right tabular-nums text-neutral-400">
+                  <td className="hidden px-2 py-1.5 text-right tabular-nums text-neutral-400 md:table-cell">
                     {formatPlayersFull(g.peak24h, locale)}
                   </td>
                   <td

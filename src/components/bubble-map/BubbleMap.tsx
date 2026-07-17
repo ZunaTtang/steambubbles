@@ -23,6 +23,7 @@ export default function BubbleMap({
   onSelect,
   className,
 }: BubbleMapProps) {
+  const tControls = useTranslations("controls");
   const hostRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<BubbleEngine | null>(null);
   // hover 툴팁 — 내용은 state, 위치는 커서를 따라 ref로 직접 갱신(리렌더 회피)
@@ -98,6 +99,28 @@ export default function BubbleMap({
         className ? ` ${className}` : ""
       }`}
     >
+      {/* 팬/줌 리셋 — 특히 모바일에서 줌아웃하다 길을 잃었을 때 복귀 버튼 */}
+      <button
+        type="button"
+        onClick={() => engineRef.current?.resetView()}
+        aria-label={tControls("resetView")}
+        title={tControls("resetView")}
+        className="absolute bottom-3 right-3 z-10 rounded-full border border-neutral-700/80 bg-[#12121a]/80 p-2.5 text-neutral-300 shadow-lg backdrop-blur-sm transition-colors hover:border-neutral-500 hover:text-white active:scale-95"
+      >
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.6}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M6 2H3a1 1 0 0 0-1 1v3M10 2h3a1 1 0 0 1 1 1v3M14 10v3a1 1 0 0 1-1 1h-3M2 10v3a1 1 0 0 0 1 1h3" />
+        </svg>
+      </button>
       {hoverGame && (
         <BubbleTooltip
           ref={tooltipRef}

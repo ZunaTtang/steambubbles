@@ -3,13 +3,36 @@
 export type Period = "24h" | "7d" | "30d";
 export const PERIODS: readonly Period[] = ["24h", "7d", "30d"];
 
-export type RangeKey = "top100" | "101-300" | "301-1000";
-export const RANGES: readonly RangeKey[] = ["top100", "101-300", "301-1000"];
+// 구간당 ≤250노드로 세분화 — 700노드 단일 뷰는 라벨 가독성이 물리적으로 불가
+// (CLAUDE.md 5-1 "한 화면 최대 ~300 노드" 캡. 2026-07 301~1,000 3분할)
+export type RangeKey =
+  | "top100"
+  | "101-300"
+  | "301-500"
+  | "501-750"
+  | "751-1000";
+export const RANGES: readonly RangeKey[] = [
+  "top100",
+  "101-300",
+  "301-500",
+  "501-750",
+  "751-1000",
+];
 // 범위 → rank 구간 [min, max]
 export const RANGE_BOUNDS: Record<RangeKey, [number, number]> = {
   top100: [1, 100],
   "101-300": [101, 300],
-  "301-1000": [301, 1000],
+  "301-500": [301, 500],
+  "501-750": [501, 750],
+  "751-1000": [751, 1000],
+};
+// 범위 → UI 라벨 i18n 키(controls.*) — TopBar 칩과 버블 뽑기 프리셋이 공유
+export const RANGE_LABEL_KEY: Record<RangeKey, string> = {
+  top100: "rangeTop100",
+  "101-300": "range101_300",
+  "301-500": "range301_500",
+  "501-750": "range501_750",
+  "751-1000": "range751_1000",
 };
 
 export type CountryCode = "kr" | "us";

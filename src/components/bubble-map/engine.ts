@@ -7,12 +7,16 @@ import {
   ALPHA_COOL,
   ALPHA_IDLE,
   ALPHA_REHEAT,
+  BUBBLE_AREA_FILL,
   CENTER_STRENGTH,
   COLLIDE_PADDING,
   JITTER_STRENGTH,
+  LOD_ZOOM_STEP,
   MAX_RADIUS_DIVISOR,
   MIN_RADIUS,
   PAN_THRESHOLD,
+  PAN_THRESHOLD_TOUCH,
+  RADIUS_FLOOR,
   VELOCITY_DECAY,
   ZOOM_MAX,
   ZOOM_MIN,
@@ -77,12 +81,17 @@ export class BubbleEngine {
   private width: number;
   private height: number;
   private simAlpha = ALPHA_REHEAT;
+  // 노드들에 마지막으로 전파한 줌 — LOD_ZOOM_STEP 이상 벗어났을 때만 재전파 (tick에서 감시)
+  private lodZoom = 1;
   private destroyed = false;
 
   // ── 팬/핀치/버블드래그 제스처 상태 (네이티브 포인터 이벤트) ──
   private readonly pointers = new Map<number, { x: number; y: number }>();
   private didPan = false;
   private panAccum = 0;
+  private panThreshold = PAN_THRESHOLD; // 포인터 타입별 (터치는 크게)
+  // hover 가능 기기(마우스/펜) 여부 — 터치 전용 기기는 hover·버블 드래그를 끄고 팬/줌에 전념
+  private readonly hoverCapable: boolean;
   private pinchDist = 0;
   private pinchMidX = 0;
   private pinchMidY = 0;
@@ -94,6 +103,8 @@ export class BubbleEngine {
     this.app = app;
     this.width = Math.max(1, host.clientWidth);
     this.height = Math.max(1, host.clientHeight);
+    this.hoverCapable =
+      window.matchMedia?.("(hover: hover)").matches ?? true;
 
     const canvas = app.canvas;
     canvas.style.position = "absolute";
@@ -133,6 +144,12 @@ export class BubbleEngine {
       if (rect.width > 0 && rect.height > 0) this.resize(rect.width, rect.height);
     });
     this.ro.observe(host);
+
+    // 개발 편의: 콘솔에서 줌/반경/LOD 상태 점검용 (프로덕션 번들 제외)
+    if (process.env.NODE_ENV === "development") {
+      (window as unknown as { __bubbleEngine?: BubbleEngine }).__bubbleEngine =
+        this;
+    }
 
     app.ticker.maxFPS = 60; // 고주사율 모니터에서 시뮬레이션 속도 고정
     app.ticker.add(this.tick);
@@ -184,6 +201,14 @@ export class BubbleEngine {
     if (membershipChanged || radiiChanged) this.simAlpha = ALPHA_REHEAT; // 완만한 재가열
   }
 
+  // 팬/줌 초기화 — 줌아웃하다 길을 잃었을 때 복귀 (모바일 오버레이 버튼에서 호출)
+  resetView(): void {
+    if (this.destroyed) return;
+    this.world.scale.set(1);
+    this.world.position.set(0, 0);
+    this.syncLodZoom();
+  }
+
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
@@ -220,9 +245,11 @@ export class BubbleEngine {
       color,
       showName,
       showChange,
+      this.hoverCapable,
       this.handleTap,
       this.handleHover,
     );
+    node.setZoom(this.lodZoom); // 현재 줌 반영 (범위 전환 등으로 줌인 중 생성될 수 있음)
     this.world.addChild(node.container);
     this.nodes.set(game.appid, node);
     // 텍스처 지연 로드 (동시 8개 큐) — 실패 시 이니셜 폴백이 자동 적용
@@ -243,13 +270,26 @@ export class BubbleEngine {
       MIN_RADIUS + 4,
       Math.min(this.width, this.height) / MAX_RADIUS_DIVISOR,
     );
-    let changed = false;
-    for (const n of list) {
-      const target =
+    // 1차: 절대 sqrt 스케일 반경 + 총면적 집계
+    const targets = new Array<number>(list.length);
+    let area = 0;
+    for (let i = 0; i < list.length; i++) {
+      const t =
         MIN_RADIUS +
-        (maxR - MIN_RADIUS) * Math.sqrt(metricOf(n.game, opts.sizeBy) / vMax);
-      if (Math.abs(target - n.sim.targetR) > 0.5) changed = true;
-      n.setTargetR(target);
+        (maxR - MIN_RADIUS) *
+          Math.sqrt(metricOf(list[i].game, opts.sizeBy) / vMax);
+      targets[i] = t;
+      area += Math.PI * t * t;
+    }
+    // 면적 예산: maxR은 ~100-300노드 기준 튜닝이라 노드가 많으면 팩킹이 뷰포트를 넘친다.
+    // 초과분만큼 전체를 균등 축소 — 비율이 보존되어 "크기 = 동접 sqrt" 인코딩은 유지된다
+    const budget = this.width * this.height * BUBBLE_AREA_FILL;
+    const k = area > budget ? Math.sqrt(budget / area) : 1;
+    let changed = false;
+    for (let i = 0; i < list.length; i++) {
+      const target = Math.max(RADIUS_FLOOR, targets[i] * k);
+      if (Math.abs(target - list[i].sim.targetR) > 0.5) changed = true;
+      list[i].setTargetR(target);
     }
     return changed;
   }
@@ -277,6 +317,16 @@ export class BubbleEngine {
     const list = this.nodeList;
     for (let i = 0; i < list.length; i++) list[i].frame();
   };
+
+  // 줌이 마지막 전파값에서 스텝 이상 벗어나면 노드 LOD 재평가 — 스케일이 변하는
+  // 모든 경로(휠/핀치=zoomAt, resetView)에서 호출. 양자화로 핀치 중 과재래스터 방지
+  private syncLodZoom(): void {
+    const z = this.world.scale.x;
+    if (Math.abs(z - this.lodZoom) / this.lodZoom > LOD_ZOOM_STEP) {
+      this.lodZoom = z;
+      for (const n of this.nodeList) n.setZoom(z);
+    }
+  }
 
   // 탭 = 선택 (Pixi pointertap). 팬/버블드래그로 많이 움직였으면 무시
   private readonly handleTap = (game: GameBubbleData): void => {
@@ -344,14 +394,20 @@ export class BubbleEngine {
     if (this.pointers.size === 1) {
       this.didPan = false;
       this.panAccum = 0;
-      // 버블 위에서 시작 → 그 버블 드래그, 배경에서 시작 → 맵 팬
-      const node = this.hitTestNode(e.clientX, e.clientY);
-      if (node) {
-        this.draggingNode = node;
-        this.dragPointerId = e.pointerId;
-        node.sim.fx = node.sim.x;
-        node.sim.fy = node.sim.y;
-        this.simAlpha = Math.max(this.simAlpha, ALPHA_REHEAT);
+      this.panThreshold =
+        e.pointerType === "touch" ? PAN_THRESHOLD_TOUCH : PAN_THRESHOLD;
+      // 버블 드래그는 hover 포인터(마우스/펜) 전용. 터치 한 손가락은 항상 맵 팬 —
+      // 밀집 뷰(301~1,000)에선 모든 터치가 버블 위라 드래그가 팬/줌을 집어삼키기 때문 (탭=선택은 유지)
+      if (e.pointerType !== "touch") {
+        // 버블 위에서 시작 → 그 버블 드래그, 배경에서 시작 → 맵 팬
+        const node = this.hitTestNode(e.clientX, e.clientY);
+        if (node) {
+          this.draggingNode = node;
+          this.dragPointerId = e.pointerId;
+          node.sim.fx = node.sim.x;
+          node.sim.fy = node.sim.y;
+          this.simAlpha = Math.max(this.simAlpha, ALPHA_REHEAT);
+        }
       }
     } else if (this.pointers.size === 2) {
       // 핀치 시작 — 진행 중이던 버블 드래그는 해제
@@ -372,7 +428,7 @@ export class BubbleEngine {
       p.x = e.clientX;
       p.y = e.clientY;
       this.panAccum += Math.abs(dx) + Math.abs(dy);
-      if (this.panAccum > PAN_THRESHOLD) this.didPan = true;
+      if (this.panAccum > this.panThreshold) this.didPan = true;
       if (this.draggingNode) {
         // 버블 드래그 — 노드를 포인터 월드 좌표에 고정 (collide가 이웃을 밀어냄)
         const w = this.toWorld(e.clientX, e.clientY);
@@ -438,5 +494,6 @@ export class BubbleEngine {
     const wy = (localY - this.world.y) / cur;
     this.world.scale.set(s);
     this.world.position.set(localX - wx * s, localY - wy * s);
+    this.syncLodZoom();
   }
 }

@@ -17,6 +17,7 @@ import { useFavorites, useSettings } from "./hooks";
 import TopBar from "./TopBar";
 import GameModal from "./GameModal";
 import RankingTable from "./RankingTable";
+import BubbleDraw from "./BubbleDraw";
 
 // PixiJS 렌더러는 브라우저 전용 — SSR 제외
 const BubbleMap = dynamic(
@@ -48,6 +49,8 @@ export default function BubbleApp({
   const locale = useLocale();
   const tControls = useTranslations("controls");
   const tCommon = useTranslations("common");
+  const tTable = useTranslations("table");
+  const tDraw = useTranslations("draw");
 
   const [period, setPeriod] = useState<Period>("24h");
   const [range, setRange] = useState<RangeKey>("top100");
@@ -60,6 +63,7 @@ export default function BubbleApp({
   const [snapshot, setSnapshot] = useState<BubbleSnapshot>(initialSnapshot);
   const [selectedGame, setSelectedGame] = useState<GameBubbleData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [drawOpen, setDrawOpen] = useState(false);
 
   const { settings, update: updateSettings } = useSettings();
   const { favorites, toggle: toggleFavorite } = useFavorites();
@@ -216,6 +220,28 @@ export default function BubbleApp({
               className="h-full w-full"
             />
           )}
+          {/* 버블 뽑기 FAB — 재방문 콘텐츠 (해자 ③ 공유 포맷). 맵 좌하단, 우하단 리셋 버튼과 대칭 */}
+          <button
+            onClick={() => setDrawOpen(true)}
+            className="absolute bottom-3 left-3 z-10 flex items-center gap-1.5 rounded-full border border-[#16c784]/50 bg-[#0a0a0f]/80 px-3.5 py-2.5 text-sm font-semibold text-[#16c784] shadow-lg backdrop-blur-sm transition-colors hover:bg-[#16c784]/15 active:scale-95"
+          >
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.5}
+              aria-hidden="true"
+            >
+              <rect x="2" y="2" width="12" height="12" rx="3" />
+              <circle cx="5.7" cy="5.7" r="1" fill="currentColor" stroke="none" />
+              <circle cx="10.3" cy="5.7" r="1" fill="currentColor" stroke="none" />
+              <circle cx="5.7" cy="10.3" r="1" fill="currentColor" stroke="none" />
+              <circle cx="10.3" cy="10.3" r="1" fill="currentColor" stroke="none" />
+            </svg>
+            {tDraw("fab")}
+          </button>
           {loading && (
             <div className="absolute inset-0 z-20 bg-[#0a0a0f]/60">
               <LoadingIndicator />
@@ -235,6 +261,13 @@ export default function BubbleApp({
               {tCommon("priceUnavailable")}
             </span>
           )}
+          {/* 맵이 터치 스와이프를 소비해 아래 테이블을 발견하기 어려움(특히 모바일) — 바로가기 */}
+          <a
+            href="#ranking"
+            className="ml-auto shrink-0 whitespace-nowrap text-neutral-400 hover:text-neutral-200"
+          >
+            {tTable("title")} ↓
+          </a>
         </div>
       </div>
 
@@ -245,6 +278,17 @@ export default function BubbleApp({
         onSelect={setSelectedGame}
         favorites={favorites}
         onToggleFavorite={toggleFavorite}
+      />
+
+      {/* 버블 뽑기 — 후보는 스냅샷 전체(화면 필터와 독립), 당첨작 상세는 GameModal 재사용 */}
+      <BubbleDraw
+        open={drawOpen}
+        games={snapshot.games}
+        onClose={() => setDrawOpen(false)}
+        onViewDetail={(game) => {
+          setDrawOpen(false);
+          setSelectedGame(game);
+        }}
       />
 
       {/* key로 게임 전환 시 모달을 리마운트 — 이전 게임의 추이/이미지 상태 잔상 방지 */}
