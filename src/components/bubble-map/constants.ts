@@ -40,3 +40,6 @@ export const ZOOM_MAX = 5;
 export const PAN_THRESHOLD = 6;
 // 터치는 접촉 면적·미세 떨림이 커서 임계값을 높인다 (탭이 팬으로 오인되어 씹히는 것 방지)
 export const PAN_THRESHOLD_TOUCH = 12;
+// 터치 버블 드래그는 롱프레스로 인게이지 — 밀집 뷰에서 팬을 잡아먹지 않으면서 드래그 공존
+// (짧은 스와이프=팬 / 탭=모달 / 꾹 누르고 이동=버블 드래그)
+export const LONG_PRESS_MS = 280;

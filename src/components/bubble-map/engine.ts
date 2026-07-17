@@ -12,6 +12,7 @@ import {
   COLLIDE_PADDING,
   JITTER_STRENGTH,
   LOD_ZOOM_STEP,
+  LONG_PRESS_MS,
   MAX_RADIUS_DIVISOR,
   MIN_RADIUS,
   PAN_THRESHOLD,
@@ -98,6 +99,9 @@ export class BubbleEngine {
   // 버블 위에서 시작한 드래그 = 해당 버블 이동(맵 팬 아님)
   private draggingNode: BubbleNode | null = null;
   private dragPointerId: number | null = null;
+  // 터치 롱프레스 드래그 — 타이머가 발화하면 드래그 인게이지 (짧은 스와이프=팬과 공존)
+  private longPressTimer: number | null = null;
+  private grabbedNode: BubbleNode | null = null; // 롱프레스로 잡힌 노드 (해제 시 큐 복원)
 
   constructor(app: Application, host: HTMLElement) {
     this.app = app;
@@ -212,6 +216,7 @@ export class BubbleEngine {
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
+    this.clearLongPress();
     this.ro.disconnect();
     const canvas = this.app.canvas;
     canvas.removeEventListener("pointerdown", this.onPointerDown);
@@ -379,9 +384,20 @@ export class BubbleEngine {
     const node = this.draggingNode;
     this.draggingNode = null;
     this.dragPointerId = null;
+    if (this.grabbedNode) {
+      this.grabbedNode.setGrabbed(false);
+      this.grabbedNode = null;
+    }
     if (!node) return;
     node.sim.fx = null;
     node.sim.fy = null;
+  }
+
+  private clearLongPress(): void {
+    if (this.longPressTimer !== null) {
+      window.clearTimeout(this.longPressTimer);
+      this.longPressTimer = null;
+    }
   }
 
   private readonly onPointerDown = (e: PointerEvent): void => {
@@ -396,10 +412,8 @@ export class BubbleEngine {
       this.panAccum = 0;
       this.panThreshold =
         e.pointerType === "touch" ? PAN_THRESHOLD_TOUCH : PAN_THRESHOLD;
-      // 버블 드래그는 hover 포인터(마우스/펜) 전용. 터치 한 손가락은 항상 맵 팬 —
-      // 밀집 뷰(301~1,000)에선 모든 터치가 버블 위라 드래그가 팬/줌을 집어삼키기 때문 (탭=선택은 유지)
       if (e.pointerType !== "touch") {
-        // 버블 위에서 시작 → 그 버블 드래그, 배경에서 시작 → 맵 팬
+        // 마우스/펜: 버블 위에서 시작 → 즉시 그 버블 드래그, 배경에서 시작 → 맵 팬
         const node = this.hitTestNode(e.clientX, e.clientY);
         if (node) {
           this.draggingNode = node;
@@ -408,9 +422,38 @@ export class BubbleEngine {
           node.sim.fy = node.sim.y;
           this.simAlpha = Math.max(this.simAlpha, ALPHA_REHEAT);
         }
+      } else {
+        // 터치: 즉시 드래그하면 밀집 뷰에서 모든 스와이프가 버블에 먹혀 팬이 불가능해진다.
+        // 롱프레스(LONG_PRESS_MS)로 인게이지 — 그 전에 임계 이상 움직이면 팬으로 확정되어 취소
+        const node = this.hitTestNode(e.clientX, e.clientY);
+        if (node) {
+          const pointerId = e.pointerId;
+          this.clearLongPress();
+          this.longPressTimer = window.setTimeout(() => {
+            this.longPressTimer = null;
+            if (
+              this.destroyed ||
+              node.isDead ||
+              this.didPan || // 이미 팬으로 확정됨
+              this.pointers.size !== 1 ||
+              !this.pointers.has(pointerId)
+            ) {
+              return;
+            }
+            this.draggingNode = node;
+            this.dragPointerId = pointerId;
+            node.sim.fx = node.sim.x;
+            node.sim.fy = node.sim.y;
+            node.setGrabbed(true); // 잡힘 큐 — 확대 + 앞당김
+            this.grabbedNode = node;
+            this.didPan = true; // 릴리즈 시 pointertap(모달) 억제 — 의도는 드래그
+            this.simAlpha = Math.max(this.simAlpha, ALPHA_REHEAT);
+          }, LONG_PRESS_MS);
+        }
       }
     } else if (this.pointers.size === 2) {
-      // 핀치 시작 — 진행 중이던 버블 드래그는 해제
+      // 핀치 시작 — 진행 중이던 버블 드래그·롱프레스 대기는 해제
+      this.clearLongPress();
       this.releaseDrag();
       const [a, b] = [...this.pointers.values()];
       this.pinchDist = Math.hypot(a.x - b.x, a.y - b.y);
@@ -428,7 +471,10 @@ export class BubbleEngine {
       p.x = e.clientX;
       p.y = e.clientY;
       this.panAccum += Math.abs(dx) + Math.abs(dy);
-      if (this.panAccum > this.panThreshold) this.didPan = true;
+      if (this.panAccum > this.panThreshold && !this.didPan) {
+        this.didPan = true;
+        this.clearLongPress(); // 팬으로 확정 — 대기 중이던 롱프레스 드래그 취소
+      }
       if (this.draggingNode) {
         // 버블 드래그 — 노드를 포인터 월드 좌표에 고정 (collide가 이웃을 밀어냄)
         const w = this.toWorld(e.clientX, e.clientY);
@@ -466,6 +512,7 @@ export class BubbleEngine {
   };
 
   private readonly onPointerEnd = (e: PointerEvent): void => {
+    this.clearLongPress(); // 발화 전 릴리즈 = 탭/팬 — 대기 취소
     // 드래그 중이던 포인터가 떼어지면 고정 해제 (탭이면 Pixi pointertap이 선택 처리)
     if (this.draggingNode && e.pointerId === this.dragPointerId) {
       this.releaseDrag();

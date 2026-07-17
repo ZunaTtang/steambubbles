@@ -217,6 +217,11 @@ export class BubbleNode {
     this.gfxDirty = true;
   }
 
+  // 터치 롱프레스 드래그 인게이지/해제 큐 — hover와 동일한 확대·앞당김 연출 재사용
+  setGrabbed(grabbed: boolean): void {
+    this.setHovered(grabbed);
+  }
+
   // 텍스처 지연 도착 — 노드가 살아 있으면 부착 (텍스처는 공유 캐시 소유)
   setTexture(tex: Texture): void {
     if (this.dead) return;
