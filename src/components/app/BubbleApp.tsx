@@ -13,7 +13,7 @@ import type {
   RangeKey,
   SnapshotScope,
 } from "@/lib/types";
-import { RANGE_BOUNDS, TOP_SCOPE_MAX_RANK } from "@/lib/types";
+import { RANGES, RANGE_BOUNDS, TOP_SCOPE_MAX_RANK } from "@/lib/types";
 import { useFavorites, useSettings } from "./hooks";
 import TopBar from "./TopBar";
 import GameModal from "./GameModal";
@@ -58,6 +58,10 @@ export default function BubbleApp({
   // top = SSR 초기 스냅샷(상위 1,000). 딥 밴드(1,001~)나 뽑기를 쓰는 순간 deep(3,000)으로
   // 승급해 재조회 — 초기 페이로드는 가볍게, 딥 데이터는 필요할 때만 (Tier 3 오픈)
   const [scope, setScope] = useState<SnapshotScope>("top");
+  // 현재 snapshot이 실제로 어떤 스코프의 데이터인지 — scope(요청값)와 달리 fetch 성공
+  // 시점에만 바뀐다. 실측 최대 랭크 판정은 반드시 이 값 기준 (요청 직후 top 스냅샷으로
+  // 오판해 잘못 폴백하는 레이스 방지)
+  const [appliedScope, setAppliedScope] = useState<SnapshotScope>("top");
   const [selectedGenres, setSelectedGenres] = useState<Set<number>>(
     () => new Set(),
   );
@@ -101,6 +105,7 @@ export default function BubbleApp({
       )
       .then((data: BubbleSnapshot) => {
         setSnapshot(data);
+        setAppliedScope(reqScope); // snapshot과 원자적으로 — 실측 최대 랭크 판정 근거
         // 통화는 SSR이 읽어야 하므로 쿠키 저장 (localStorage 금지 — CLAUDE.md 7).
         // 성공적으로 반영된 통화만 저장해 쿠키와 표시 데이터가 어긋나지 않게 한다.
         if (reqCurrency !== appliedRef.current.currency) {
@@ -146,6 +151,26 @@ export default function BubbleApp({
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
+  // 실측 최대 랭크 — deep 스냅샷이 "실제로 적용된" 뒤에만 안다 (top 스냅샷은 1,000 컷이라 미지).
+  // scope(요청값)가 아니라 appliedScope 기준 — 요청 직후 top 스냅샷이 남아있는 렌더 창에서
+  // 1,000을 실측치로 오판해 잘못 폴백하는 레이스 방지.
+  // tier 3 후보 중 동접 API가 응답하지 않는 앱이 있어 실측 최대는 3,000보다 작다 (예: ~2,600)
+  const maxAvailableRank =
+    appliedScope === "deep" && snapshot.games.length > 0
+      ? snapshot.games[snapshot.games.length - 1].rank
+      : null;
+
+  // 선택된 구간이 실측 데이터 밖이면(예: 2,751~3,000인데 최대 2,608위) 가장 깊은 유효
+  // 구간으로 폴백 — "조건에 맞는 게임이 없습니다" 데드엔드 방지
+  useEffect(() => {
+    if (maxAvailableRank === null) return;
+    if (RANGE_BOUNDS[range][0] <= maxAvailableRank) return;
+    const fallback = [...RANGES]
+      .reverse()
+      .find((r) => RANGE_BOUNDS[r][0] <= maxAvailableRank);
+    if (fallback) setRange(fallback);
+  }, [maxAvailableRank, range]);
+
   const toggleGenre = useCallback((id: number) => {
     setSelectedGenres((prev) => {
       const next = new Set(prev);
@@ -161,6 +186,9 @@ export default function BubbleApp({
     setSearch("");
     setSelectedGenres(new Set());
     setFavoritesOnly(false);
+    // deep 조회 실패로 스코프가 top으로 되돌아간 상태에서 딥 구간이 남아있는 등
+    // 어떤 조합에서도 확실한 탈출구가 되도록 범위도 초기화
+    setRange("top100");
   }, []);
 
   const filteredGames = useMemo(() => {
@@ -202,6 +230,7 @@ export default function BubbleApp({
           onPeriodChange={setPeriod}
           range={range}
           onRangeChange={changeRange}
+          maxAvailableRank={maxAvailableRank}
           genres={genres}
           selectedGenres={selectedGenres}
           onToggleGenre={toggleGenre}
@@ -220,17 +249,21 @@ export default function BubbleApp({
 
         <div className="relative min-h-0 flex-1">
           {filteredGames.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center gap-3">
-              <p className="text-sm text-neutral-500">
-                {tControls("noResults")}
-              </p>
-              <button
-                onClick={clearFilters}
-                className="rounded-md border border-neutral-800 px-3 py-1.5 text-xs text-neutral-400 hover:border-neutral-600 hover:text-neutral-200"
-              >
-                {tControls("clearFilters")}
-              </button>
-            </div>
+            // 재조회 중(예: 딥 밴드 첫 선택)에는 빈 결과가 잠정 상태 — 스피너만 보이고
+            // "조건에 맞는 게임이 없습니다" 플래시를 띄우지 않는다
+            loading ? null : (
+              <div className="flex h-full flex-col items-center justify-center gap-3">
+                <p className="text-sm text-neutral-500">
+                  {tControls("noResults")}
+                </p>
+                <button
+                  onClick={clearFilters}
+                  className="rounded-md border border-neutral-800 px-3 py-1.5 text-xs text-neutral-400 hover:border-neutral-600 hover:text-neutral-200"
+                >
+                  {tControls("clearFilters")}
+                </button>
+              </div>
+            )
           ) : (
             <BubbleMap
               games={filteredGames}

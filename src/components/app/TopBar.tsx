@@ -27,6 +27,9 @@ interface TopBarProps {
   onPeriodChange: (period: Period) => void;
   range: RangeKey;
   onRangeChange: (range: RangeKey) => void;
+  // 실측 최대 랭크 (deep 스냅샷 적용 후) — null이면 미지(전 구간 노출).
+  // 추적 데이터 밖 구간(예: 최대 2,608위인데 2,751~3,000)을 숨겨 데드엔드 방지
+  maxAvailableRank: number | null;
   genres: GenreOption[];
   selectedGenres: Set<number>;
   onToggleGenre: (id: number) => void;
@@ -49,6 +52,7 @@ export default function TopBar({
   onPeriodChange,
   range,
   onRangeChange,
+  maxAvailableRank,
   genres,
   selectedGenres,
   onToggleGenre,
@@ -77,6 +81,12 @@ export default function TopBar({
     r === "top100"
       ? t("rangeTop100")
       : t("rangeBand", { lo: RANGE_BOUNDS[r][0], hi: RANGE_BOUNDS[r][1] });
+
+  // 실측 최대를 아는 상태(deep 적용 후)면 데이터 밖 구간은 목록에서 제외
+  const visibleRanges =
+    maxAvailableRank === null
+      ? RANGES
+      : RANGES.filter((r) => RANGE_BOUNDS[r][0] <= maxAvailableRank);
 
   const suggestions = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -303,7 +313,7 @@ export default function TopBar({
           aria-label={t("range")}
           className="shrink-0 rounded-md border border-neutral-800 bg-neutral-900 px-2 py-1.5 text-xs text-neutral-200 focus:border-neutral-600 focus:outline-none md:py-1"
         >
-          {RANGES.map((r) => (
+          {visibleRanges.map((r) => (
             <option key={r} value={r}>
               {rangeLabel(r)}
             </option>
