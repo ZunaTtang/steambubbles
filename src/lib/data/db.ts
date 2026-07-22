@@ -17,6 +17,7 @@ import {
   type BubbleSnapshot,
   type Currency,
   type GameBubbleData,
+  type GameDetailExtra,
   type GenreOption,
   type Period,
   type PriceInfo,
@@ -299,6 +300,45 @@ export async function dbGetTrend(
     .groupBy(dayExpr)
     .orderBy(asc(dayExpr));
   return rows.map((r) => ({ date: r.date, peak: r.peak ?? 0, avg: r.avg }));
+}
+
+// 상세 페이지 확장 데이터 — 소개(로케일별)·출시일 + 평점 긍정/부정 수.
+// 버블 스냅샷과 분리해 버블맵 페이로드에 무거운 텍스트가 실리지 않게 한다.
+export async function dbGetGameDetail(
+  appid: number,
+  locale: Locale,
+): Promise<GameDetailExtra> {
+  const db = getDb();
+  const [appRow] = await db
+    .select({
+      descKo: apps.descKo,
+      descEn: apps.descEn,
+      releaseDate: apps.releaseDate,
+    })
+    .from(apps)
+    .where(eq(apps.appid, appid))
+    .limit(1);
+  const [rev] = await db
+    .select({
+      totalPositive: reviews.totalPositive,
+      totalNegative: reviews.totalNegative,
+    })
+    .from(reviews)
+    .where(eq(reviews.appid, appid))
+    .limit(1);
+
+  // 요청 로케일 소개 → 없으면 타 로케일 폴백 (한쪽만 수집된 과도기 대비)
+  const description =
+    locale === "ko"
+      ? (appRow?.descKo ?? appRow?.descEn ?? null)
+      : (appRow?.descEn ?? appRow?.descKo ?? null);
+
+  return {
+    description,
+    releaseDate: appRow?.releaseDate ?? null,
+    totalPositive: rev?.totalPositive ?? 0,
+    totalNegative: rev?.totalNegative ?? 0,
+  };
 }
 
 // generateStaticParams·sitemap용 — 추적 중인(Tier maxTier 이하) 앱 목록, 랭크 순

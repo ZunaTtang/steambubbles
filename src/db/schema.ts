@@ -27,6 +27,11 @@ export const apps = pgTable(
     nameEn: text("name_en"),
     nameKo: text("name_ko"),
     headerImage: text("header_image"),
+    // Steam short_description (로케일별) + 출시일 — 상세 페이지 소개/데이터용.
+    // details 크론이 기존 appdetails 호출에서 함께 파싱해 채운다 (추가 API 콜 없음)
+    descKo: text("desc_ko"),
+    descEn: text("desc_en"),
+    releaseDate: text("release_date"),
     isFree: boolean("is_free").notNull().default(false),
     tier: smallint("tier").notNull().default(3),
     lastSeenRank: integer("last_seen_rank"),

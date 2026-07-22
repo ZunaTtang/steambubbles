@@ -2,6 +2,7 @@ import type { Locale } from "@/i18n/locales";
 import type {
   BubbleSnapshot,
   Currency,
+  GameDetailExtra,
   GenreOption,
   Period,
   TrendPoint,
@@ -118,6 +119,31 @@ export async function mockGetTrend(
     });
   }
   return points;
+}
+
+// review_score(0~9) → 긍정 비율 근사 (목업 긍정률 바용)
+const POS_RATIO = [0, 0.15, 0.3, 0.42, 0.48, 0.62, 0.78, 0.86, 0.93, 0.97];
+
+export async function mockGetGameDetail(
+  appid: number,
+  locale: Locale,
+): Promise<GameDetailExtra> {
+  const g = (rawGames as MockGame[]).find((x) => x.appid === appid);
+  const total = g?.totalReviews ?? 0;
+  const ratio = POS_RATIO[g?.reviewScore ?? 0] ?? 0.7;
+  const totalPositive = Math.round(total * ratio);
+  const name = g ? (locale === "ko" ? g.nameKo : g.nameEn) : "이 게임";
+  const description = g
+    ? locale === "ko"
+      ? `${name}은(는) 스팀에서 즐길 수 있는 인기 게임입니다. 지금도 많은 플레이어가 접속해 있으며, 동접 순위 상위권을 유지하고 있습니다. (목업 소개 텍스트)`
+      : `${name} is a popular game on Steam with a large, active player base. It consistently ranks near the top by concurrent players. (mock description)`
+    : null;
+  return {
+    description,
+    releaseDate: `20${13 + (appid % 12)}`,
+    totalPositive,
+    totalNegative: total - totalPositive,
+  };
 }
 
 // generateStaticParams·sitemap용 — 목업은 랭크 순 전체 appid

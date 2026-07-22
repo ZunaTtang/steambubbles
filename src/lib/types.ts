@@ -114,6 +114,15 @@ export interface TrendPoint {
   avg: number;
 }
 
+// 상세 페이지 확장 데이터 — 버블 스냅샷(GameBubbleData)에는 없는 무거운/부가 필드.
+// 버블맵 페이로드를 가볍게 유지하려고 상세 페이지에서만 별도 조회한다.
+export interface GameDetailExtra {
+  description: string | null; // Steam short_description (로케일 반영)
+  releaseDate: string | null; // 출시일 (영어 표기 정본)
+  totalPositive: number;
+  totalNegative: number;
+}
+
 // ─── 버블맵 컴포넌트 계약 (src/components/bubble-map) ───
 
 export type SizeBy = "players" | "peak24h";

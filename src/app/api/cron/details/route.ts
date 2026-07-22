@@ -139,6 +139,7 @@ export async function POST(req: NextRequest) {
               nameKo: kr.name,
               headerImage: kr.headerImage,
               isFree: kr.isFree,
+              descKo: kr.description,
             })
             .where(eq(apps.appid, appid));
           if (kr.priceOverview) await upsertPrice(db, appid, "kr", kr.priceOverview);
@@ -157,9 +158,14 @@ export async function POST(req: NextRequest) {
         await sleep(STORE_CALL_GAP_MS);
         const us = await getAppDetails(appid, "us");
         if (us) {
+          // 출시일은 로케일 무관 — 영어 호출값을 정본으로 저장 (표시 라벨만 i18n)
           await db
             .update(apps)
-            .set({ nameEn: us.name })
+            .set({
+              nameEn: us.name,
+              descEn: us.description,
+              releaseDate: us.releaseDate,
+            })
             .where(eq(apps.appid, appid));
           if (us.priceOverview) await upsertPrice(db, appid, "us", us.priceOverview);
         }

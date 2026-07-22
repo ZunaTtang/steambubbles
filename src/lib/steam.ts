@@ -156,6 +156,9 @@ export interface AppDetails {
   // null = 무료 게임 or price_overview 없음
   priceOverview: AppPriceOverview | null;
   genreIds: number[];
+  // 상세 페이지 소개용 (로케일별) — 같은 호출에서 함께 확보, null 가능
+  description: string | null;
+  releaseDate: string | null;
 }
 
 interface RawAppDetailsEntry {
@@ -164,6 +167,8 @@ interface RawAppDetailsEntry {
     name?: string;
     header_image?: string;
     is_free?: boolean;
+    short_description?: string;
+    release_date?: { coming_soon?: boolean; date?: string };
     price_overview?: {
       currency?: string;
       initial?: number;
@@ -180,7 +185,7 @@ export async function getAppDetails(
   cc: StoreCC,
 ): Promise<AppDetails | null> {
   const l = cc === "kr" ? "korean" : "english";
-  const url = `${STORE_BASE}/api/appdetails?appids=${appid}&cc=${cc}&l=${l}&filters=price_overview,basic,genres`;
+  const url = `${STORE_BASE}/api/appdetails?appids=${appid}&cc=${cc}&l=${l}&filters=price_overview,basic,genres,short_description,release_date`;
   const json = await fetchJsonWithRetry<
     Record<string, RawAppDetailsEntry | undefined>
   >(url, { domain: "store" });
@@ -212,6 +217,11 @@ export async function getAppDetails(
     isFree: d.is_free ?? false,
     priceOverview,
     genreIds,
+    description:
+      typeof d.short_description === "string" && d.short_description.trim()
+        ? d.short_description
+        : null,
+    releaseDate: d.release_date?.date?.trim() || null,
   };
 }
 

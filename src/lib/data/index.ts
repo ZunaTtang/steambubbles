@@ -3,6 +3,7 @@ import type { Locale } from "@/i18n/locales";
 import type {
   BubbleSnapshot,
   Currency,
+  GameDetailExtra,
   GenreOption,
   Period,
   SnapshotScope,
@@ -10,6 +11,7 @@ import type {
 } from "@/lib/types";
 import {
   mockGetBubbleSnapshot,
+  mockGetGameDetail,
   mockGetGenreOptions,
   mockGetTrackedAppids,
   mockGetTrend,
@@ -83,6 +85,21 @@ export async function getTrend(
     },
     ["trend", String(appid), String(days)],
     { revalidate: REVALIDATE_S, tags: ["trend"] },
+  )();
+}
+
+export async function getGameDetail(
+  appid: number,
+  locale: Locale,
+): Promise<GameDetailExtra> {
+  if (isMockMode()) return mockGetGameDetail(appid, locale);
+  return unstable_cache(
+    async () => {
+      const { dbGetGameDetail } = await import("./db");
+      return dbGetGameDetail(appid, locale);
+    },
+    ["game-detail", String(appid), locale],
+    { revalidate: REVALIDATE_S, tags: ["apps"] },
   )();
 }
 

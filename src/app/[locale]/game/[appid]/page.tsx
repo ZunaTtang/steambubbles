@@ -10,9 +10,19 @@ import {
   DEFAULT_LOCALE,
   type Locale,
 } from "@/i18n/locales";
-import { getBubbleSnapshot, getGenreOptions, getTrend } from "@/lib/data";
+import {
+  getBubbleSnapshot,
+  getGameDetail,
+  getGenreOptions,
+  getTrend,
+} from "@/lib/data";
 import type { Currency, GameBubbleData, TrendPoint } from "@/lib/types";
-import { formatPlayersFull, formatPrice } from "@/lib/format";
+import {
+  formatChangePct,
+  formatPlayersFull,
+  formatPrice,
+  formatSharePct,
+} from "@/lib/format";
 import { buildAlternates, getSiteUrl } from "@/lib/site";
 import DetailBackBar from "@/components/app/DetailBackBar";
 
@@ -141,6 +151,31 @@ function TrendChart({ points }: { points: TrendPoint[] }) {
   );
 }
 
+// 데이터 카드 — 라벨 + 값(+ 선택 뱃지). dl > div(dt/dd) 그룹은 유효 HTML
+function Stat({
+  label,
+  value,
+  badge,
+}: {
+  label: string;
+  value: string;
+  badge?: string;
+}) {
+  return (
+    <div className="rounded-lg border border-neutral-800 bg-neutral-900/40 p-3">
+      <dt className="text-xs text-neutral-500">{label}</dt>
+      <dd className="mt-0.5 flex items-baseline gap-1.5">
+        <span className="text-base font-semibold text-neutral-100">{value}</span>
+        {badge && (
+          <span className="rounded bg-[#fbbf24]/15 px-1 py-0.5 text-[10px] font-bold text-[#fbbf24]">
+            {badge}
+          </span>
+        )}
+      </dd>
+    </div>
+  );
+}
+
 export default async function GameDetailPage({ params }: Props) {
   const { locale: rawLocale, appid: rawAppid } = await params;
   setRequestLocale(rawLocale);
@@ -149,11 +184,12 @@ export default async function GameDetailPage({ params }: Props) {
   if (appid === null) notFound();
 
   const t = await getTranslations({ locale });
-  const [{ game, priceDataStale, updatedAt }, genreOptions, trend] =
+  const [{ game, priceDataStale, updatedAt }, genreOptions, trend, detail] =
     await Promise.all([
       loadGame(locale, appid),
       getGenreOptions(locale),
       getTrend(appid, 30),
+      getGameDetail(appid, locale),
     ]);
   if (!game) notFound();
 
@@ -181,15 +217,21 @@ export default async function GameDetailPage({ params }: Props) {
     });
   }
 
-  const summary = [
-    t("detail.sPlayers", { name: game.name, players: game.players }),
-    t("detail.sPeak", { peak: game.peak24h }),
+  // 게임 소개 = Steam short_description(실콘텐츠). 미수집 시 SEO/애드센스용 폴백 문장.
+  // 단, 현재/최고 동접은 줄글에 넣지 않는다(데이터 블록으로 표시) — 순위·평점·가격만.
+  const fallbackIntro = [
+    t("detail.sRank", { rank: game.rank }),
     game.reviewScore > 0
       ? t("detail.sReview", { label: reviewLabel, count: game.totalReviews })
       : t("detail.sReviewNone"),
     priceSentence,
-    t("detail.sRank", { rank: game.rank }),
   ].join(" ");
+  const introText = detail.description ?? fallbackIntro;
+
+  // 평점 긍정률 (긍정/(긍정+부정)) — 흥미 신호 바
+  const polarized = detail.totalPositive + detail.totalNegative;
+  const positivePct =
+    polarized > 0 ? Math.round((detail.totalPositive / polarized) * 100) : null;
 
   const canonical = `${getSiteUrl()}/${locale}/game/${appid}`;
   const jsonLd: Record<string, unknown> = {
@@ -238,49 +280,87 @@ export default async function GameDetailPage({ params }: Props) {
       <h1 className="text-2xl font-bold text-neutral-100">
         {game.name} {t("detail.metaTitleSuffix")}
       </h1>
-      <p className="mb-6 text-sm text-neutral-500">
+      <p className="mb-5 text-sm text-neutral-500">
         {t("modal.rank", { rank: game.rank })}
         {game.nameEn !== game.name && ` · ${game.nameEn}`}
+        {detail.releaseDate &&
+          ` · ${t("detail.released", { date: detail.releaseDate })}`}
       </p>
 
-      {/* 지표 */}
-      <dl className="mb-6 grid grid-cols-2 gap-4 rounded-lg border border-neutral-800 bg-neutral-900/40 p-4 sm:grid-cols-4">
-        <div>
-          <dt className="text-xs text-neutral-500">{t("modal.players")}</dt>
-          <dd className="text-lg font-semibold text-neutral-100">
+      {/* 현재 동접 (히어로) + 기간 변화 */}
+      <div className="mb-4 rounded-lg border border-neutral-800 bg-neutral-900/40 p-5">
+        <div className="text-xs text-neutral-500">{t("modal.players")}</div>
+        <div className="mt-1 flex items-baseline gap-3">
+          <span className="text-4xl font-bold tabular-nums text-neutral-50">
             {formatPlayersFull(game.players, locale)}
-          </dd>
+          </span>
+          {game.changePct !== null && (
+            <span
+              className={`text-sm font-semibold ${
+                game.changePct >= 0 ? "text-[#16c784]" : "text-[#ea3943]"
+              }`}
+            >
+              {formatChangePct(game.changePct)}
+            </span>
+          )}
         </div>
-        <div>
-          <dt className="text-xs text-neutral-500">{t("modal.peak24h")}</dt>
-          <dd className="text-lg font-semibold text-neutral-100">
-            {formatPlayersFull(game.peak24h, locale)}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs text-neutral-500">{t("modal.reviews")}</dt>
-          <dd className="text-sm font-semibold text-neutral-100">
-            {reviewLabel}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs text-neutral-500">{t("modal.price")}</dt>
-          <dd className="text-sm font-semibold text-neutral-100">
-            {game.isFree
+      </div>
+
+      {/* 핵심 데이터 (줄글 대신 수치로) */}
+      <dl className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Stat
+          label={t("modal.peak24h")}
+          value={formatPlayersFull(game.peak24h, locale)}
+        />
+        <Stat label={t("table.rank")} value={`#${game.rank}`} />
+        <Stat
+          label={t("common.marketShare")}
+          value={formatSharePct(game.sharePct)}
+        />
+        <Stat
+          label={t("modal.price")}
+          value={
+            game.isFree
               ? t("common.free")
               : priceDataStale || !game.price
                 ? t("common.priceUnavailable")
-                : formatPrice(game.price, locale)}
-          </dd>
-        </div>
+                : formatPrice(game.price, locale)
+          }
+          badge={
+            !priceDataStale && game.price && game.price.discountPct > 0
+              ? `-${game.price.discountPct}%`
+              : undefined
+          }
+        />
       </dl>
 
-      {/* 자연문 요약 (SEO 본문 + 애드센스 승인용 텍스트) */}
+      {/* 평점 긍정률 바 — "이 게임 재밌나?" 신호 */}
+      {game.reviewScore > 0 && positivePct !== null && (
+        <div className="mb-6 rounded-lg border border-neutral-800 bg-neutral-900/40 p-4">
+          <div className="mb-2 flex items-baseline justify-between gap-2">
+            <span className="text-sm font-semibold text-neutral-200">
+              {reviewLabel}
+            </span>
+            <span className="text-xs text-neutral-400">
+              {t("detail.reviewsPositive", { pct: positivePct })} ·{" "}
+              {t("modal.totalReviews", { count: game.totalReviews })}
+            </span>
+          </div>
+          <div className="h-2 w-full overflow-hidden rounded-full bg-[#ea3943]/50">
+            <div
+              className="h-full rounded-full bg-[#16c784]"
+              style={{ width: `${positivePct}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* 게임 소개 (Steam short_description; 미수집 시 SEO 폴백 문장) */}
       <section className="mb-6">
         <h2 className="mb-2 text-lg font-semibold text-neutral-200">
-          {t("detail.aboutHeading")}
+          {t("detail.introHeading")}
         </h2>
-        <p className="leading-relaxed text-neutral-300">{summary}</p>
+        <p className="leading-relaxed text-neutral-300">{introText}</p>
         {genreLabels.length > 0 && (
           <p className="mt-3 flex flex-wrap items-center gap-2 text-sm text-neutral-400">
             <span className="text-neutral-500">{t("detail.genresLabel")}:</span>
