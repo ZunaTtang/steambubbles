@@ -4,6 +4,10 @@
 :root {
   --background: #0a0a0f;
   --foreground: #ededed;
+  /* 커스텀 이징 (emil-design-eng) — 기본 CSS 이징은 약해서 punch가 부족하다.
+     UI는 ease-out(즉각 반응감), 화면 내 이동은 ease-in-out. ease-in은 UI에 금지. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 }
 
 @theme inline {
@@ -30,4 +34,37 @@ body {
 @keyframes draw-fadeup {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── UI 진입 모션 (emil-design-eng: @starting-style + transition, ease-out · <300ms · transform+opacity만) ──
+   갑작스러운 등장(teleport) 방지가 목적. @starting-style을 쓰는 이유: 기본 상태가 opacity 1(보임)
+   이라 미지원 브라우저·모션 미실행 상황에서도 절대 "안 보이는 모달"이 되지 않는다(안전한 강등).
+   기본은 페이드만(reduced-motion 안전) → no-preference에서 scale/translate 강화.
+   transform-origin은 요소의 Tailwind origin-* 유틸로 지정(모달=center 기본, 팝오버=트리거 쪽). */
+.anim-overlay {
+  transition: opacity 200ms var(--ease-out);
+  @starting-style { opacity: 0; }
+}
+.anim-modal {
+  transition: opacity 200ms var(--ease-out);
+  @starting-style { opacity: 0; }
+}
+.anim-pop {
+  transition: opacity 150ms var(--ease-out);
+  @starting-style { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .anim-modal {
+    transition:
+      opacity 200ms var(--ease-out),
+      transform 200ms var(--ease-out);
+    @starting-style { transform: scale(0.96); }
+  }
+  .anim-pop {
+    transition:
+      opacity 150ms var(--ease-out),
+      transform 150ms var(--ease-out);
+    @starting-style { transform: scale(0.96) translateY(-4px); }
+  }
 }

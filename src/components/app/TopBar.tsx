@@ -142,7 +142,7 @@ export default function TopBar({
             className="w-full rounded-md border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 text-sm text-neutral-200 placeholder:text-neutral-500 focus:border-neutral-600 focus:outline-none md:py-1"
           />
           {showDropdown && (
-            <ul className="absolute left-0 right-0 top-full z-40 mt-1 overflow-hidden rounded-md border border-neutral-800 bg-neutral-900 shadow-xl">
+            <ul className="anim-pop origin-top absolute left-0 right-0 top-full z-40 mt-1 overflow-hidden rounded-md border border-neutral-800 bg-neutral-900 shadow-xl">
               {suggestions.map((g) => (
                 <li key={g.appid}>
                   <button
@@ -209,7 +209,7 @@ export default function TopBar({
                 className="fixed inset-0 z-40"
                 onClick={() => setSettingsOpen(false)}
               />
-              <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded-md border border-neutral-800 bg-neutral-900 p-3 text-sm shadow-xl">
+              <div className="anim-pop origin-top-right absolute right-0 top-full z-50 mt-1 w-56 rounded-md border border-neutral-800 bg-neutral-900 p-3 text-sm shadow-xl">
                 <fieldset className="mb-3">
                   <legend className="mb-1 text-xs text-neutral-500">
                     {t("sizeBy")}

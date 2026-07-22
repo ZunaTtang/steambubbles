@@ -37,6 +37,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# AI 에이전트 스킬 (npx skills add로 로컬 설치 — 재설치 가능한 툴링, Windows 정션 포함)
+/.agents/
+/.claude/skills/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

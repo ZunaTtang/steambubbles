@@ -206,12 +206,12 @@ export default function ShareModal({
 
       {/* 표시 모달 */}
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+        className="anim-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
         onClick={onClose}
       >
         <div
           onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-2xl overflow-hidden rounded-xl border border-neutral-800 bg-[#12121a] shadow-2xl"
+          className="anim-modal w-full max-w-2xl overflow-hidden rounded-xl border border-neutral-800 bg-[#12121a] shadow-2xl"
         >
           <div className="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
             <h2 className="text-sm font-semibold text-neutral-200">
@@ -270,7 +270,7 @@ export default function ShareModal({
                       else setBubbleUrl(url);
                     });
                   }}
-                  className="rounded-md border border-neutral-700 px-3.5 py-2 text-sm font-medium text-neutral-200 hover:border-neutral-500"
+                  className="rounded-md border border-neutral-700 px-3.5 py-2 text-sm font-medium text-neutral-200 transition hover:border-neutral-500 active:scale-[0.98]"
                 >
                   {t("retry")}
                 </button>
@@ -280,7 +280,7 @@ export default function ShareModal({
                     <button
                       onClick={onCopy}
                       disabled={phase !== "ready"}
-                      className="rounded-md border border-neutral-700 px-3.5 py-2 text-sm font-medium text-neutral-200 hover:border-neutral-500 disabled:opacity-40"
+                      className="rounded-md border border-neutral-700 px-3.5 py-2 text-sm font-medium text-neutral-200 transition hover:border-neutral-500 active:scale-[0.98] disabled:opacity-40"
                     >
                       {copied ? t("copied") : t("copy")}
                     </button>
@@ -289,7 +289,7 @@ export default function ShareModal({
                     <button
                       onClick={onShare}
                       disabled={phase !== "ready"}
-                      className="rounded-md border border-neutral-700 px-3.5 py-2 text-sm font-medium text-neutral-200 hover:border-neutral-500 disabled:opacity-40"
+                      className="rounded-md border border-neutral-700 px-3.5 py-2 text-sm font-medium text-neutral-200 transition hover:border-neutral-500 active:scale-[0.98] disabled:opacity-40"
                     >
                       {t("share")}
                     </button>
@@ -297,7 +297,7 @@ export default function ShareModal({
                   <button
                     onClick={onDownload}
                     disabled={phase !== "ready"}
-                    className="rounded-md bg-[#16c784] px-3.5 py-2 text-sm font-semibold text-[#052e1c] hover:bg-[#13b676] disabled:opacity-40"
+                    className="rounded-md bg-[#16c784] px-3.5 py-2 text-sm font-semibold text-[#052e1c] transition hover:bg-[#13b676] active:scale-[0.98] disabled:opacity-40"
                   >
                     {t("download")}
                   </button>

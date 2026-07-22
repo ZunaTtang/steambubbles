@@ -104,7 +104,7 @@ export default function GameModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      className="anim-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
       onClick={onClose}
     >
       <div
@@ -115,7 +115,7 @@ export default function GameModal({
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
-        className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-lg border border-neutral-800 bg-[#12121a] shadow-2xl focus:outline-none"
+        className="anim-modal max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-lg border border-neutral-800 bg-[#12121a] shadow-2xl focus:outline-none"
       >
         {game.headerImage && !imgError && (
           // 외부 도메인 스팀 CDN — 일반 img 사용, 로드 실패 시 숨김
@@ -258,7 +258,7 @@ export default function GameModal({
                 /* 저장소 접근 불가 — 상세에서 홈 push로 폴백 */
               }
             }}
-            className="block w-full rounded-md bg-[#16c784]/15 px-3 py-2 text-center text-sm font-semibold text-[#16c784] hover:bg-[#16c784]/25"
+            className="block w-full rounded-md bg-[#16c784]/15 px-3 py-2 text-center text-sm font-semibold text-[#16c784] transition hover:bg-[#16c784]/25 active:scale-[0.98]"
           >
             {t("detailLink")} →
           </Link>
