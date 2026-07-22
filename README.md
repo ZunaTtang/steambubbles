@@ -151,8 +151,8 @@ scripts/                # 목업 fixture 생성기
 ### Phase 5 — 마감 ([#5](https://github.com/ZunaTtang/steambubbles/issues/5)) 🔄 진행 중
 
 - [x] 공유/스크린샷: 버블맵 뷰포트 → 브랜드 카드(헤더·Top3·워터마크) PNG. Pixi extract + snapdom, 다운로드·Web Share·클립보드 복사
-- [ ] `/[locale]/og` 동적 OG 이미지
-- [ ] Vercel Analytics
+- [x] `/[locale]/og` 동적 OG 이미지 — next/og로 top 7 동접 리더보드(1200×630) + 홈 openGraph/twitter 연결
+- [x] Vercel Analytics (`<Analytics/>` — 배포 환경 수집)
 - [ ] 우아한 강등 동작 검증 (store 장애 시 가격 UI 숨김, 동접 정상)
 
 ### 로케일
