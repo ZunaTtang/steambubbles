@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { CURRENCY_COOKIE } from "@/i18n/locales";
 import type {
+  BubbleMapHandle,
   BubbleSnapshot,
   Currency,
   GameBubbleData,
@@ -19,6 +20,13 @@ import TopBar from "./TopBar";
 import GameModal from "./GameModal";
 import RankingTable from "./RankingTable";
 import BubbleDraw from "./BubbleDraw";
+import ShareModal from "./ShareModal";
+
+const PERIOD_LABEL_KEY: Record<Period, string> = {
+  "24h": "period24h",
+  "7d": "period7d",
+  "30d": "period30d",
+};
 
 // PixiJS 렌더러는 브라우저 전용 — SSR 제외
 const BubbleMap = dynamic(
@@ -52,6 +60,7 @@ export default function BubbleApp({
   const tCommon = useTranslations("common");
   const tTable = useTranslations("table");
   const tDraw = useTranslations("draw");
+  const tShare = useTranslations("share");
 
   const [period, setPeriod] = useState<Period>("24h");
   const [range, setRange] = useState<RangeKey>("top100");
@@ -72,6 +81,9 @@ export default function BubbleApp({
   const [selectedGame, setSelectedGame] = useState<GameBubbleData | null>(null);
   const [loading, setLoading] = useState(false);
   const [drawOpen, setDrawOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  // 버블맵 엔진 캡처 핸들 — 공유 이미지 생성용 (엔진 준비 시 채워짐)
+  const mapHandleRef = useRef<BubbleMapHandle | null>(null);
 
   const { settings, update: updateSettings } = useSettings();
   const { favorites, toggle: toggleFavorite } = useFavorites();
@@ -147,6 +159,15 @@ export default function BubbleApp({
     setScope("deep");
   }, []);
 
+  // 버블맵 엔진 준비/해제 시 캡처 핸들 보관 (stable — 마운트 1회 effect에서 호출)
+  const handleMapReady = useCallback((h: BubbleMapHandle | null) => {
+    mapHandleRef.current = h;
+  }, []);
+  const captureMap = useCallback(
+    (r?: number) => mapHandleRef.current?.capture(r) ?? Promise.resolve(null),
+    [],
+  );
+
   // updatedAt는 클라이언트 로컬 타임존으로만 렌더 — 서버(UTC)에서 포맷해 굳으면 KST 유저에게 오시각 표시
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -221,6 +242,16 @@ export default function BubbleApp({
       })
     : "";
 
+  // 공유 카드용 라벨 (TopBar의 범위 라벨 규칙과 동일)
+  const rangeLabelText =
+    range === "top100"
+      ? tControls("rangeTop100")
+      : tControls("rangeBand", {
+          lo: RANGE_BOUNDS[range][0],
+          hi: RANGE_BOUNDS[range][1],
+        });
+  const periodLabelText = tControls(PERIOD_LABEL_KEY[period]);
+
   return (
     <div className="flex min-h-screen flex-col">
       {/* 첫 화면 = 상단 바 + 버블맵 + 상태 스트립 (풀 뷰포트) */}
@@ -272,8 +303,34 @@ export default function BubbleApp({
               showName={settings.showName}
               showChange={settings.showChange}
               onSelect={setSelectedGame}
+              onReady={handleMapReady}
               className="h-full w-full"
             />
+          )}
+          {/* 공유/스크린샷 — 맵 우하단, 화면 초기화 버튼 위에 스택. 맵이 있을 때만 */}
+          {filteredGames.length > 0 && (
+            <button
+              onClick={() => setShareOpen(true)}
+              aria-label={tShare("button")}
+              title={tShare("button")}
+              className="absolute bottom-16 right-3 z-10 rounded-full border border-[#16c784]/50 bg-[#0a0a0f]/80 p-2.5 text-[#16c784] shadow-lg backdrop-blur-sm transition-colors hover:bg-[#16c784]/15 active:scale-95"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.4}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M8 2.2v7.3" />
+                <path d="M5.5 4.5 8 2l2.5 2.5" />
+                <path d="M4 7.2H3.4v5.4a1 1 0 0 0 1 1h7.2a1 1 0 0 0 1-1V7.2H12" />
+              </svg>
+            </button>
           )}
           {/* 버블 뽑기 FAB — 재방문 콘텐츠 (해자 ③ 공유 포맷). 맵 좌하단, 우하단 리셋 버튼과 대칭 */}
           <button
@@ -344,6 +401,17 @@ export default function BubbleApp({
           setDrawOpen(false);
           setSelectedGame(game);
         }}
+      />
+
+      {/* 공유 이미지 — 현재 버블맵 뷰포트를 브랜드 카드로 캡처 */}
+      <ShareModal
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        capture={captureMap}
+        games={filteredGames}
+        rangeLabel={rangeLabelText}
+        periodLabel={periodLabelText}
+        updatedTime={updatedTime}
       />
 
       {/* key로 게임 전환 시 모달을 리마운트 — 이전 게임의 추이/이미지 상태 잔상 방지 */}

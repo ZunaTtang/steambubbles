@@ -54,6 +54,21 @@
     "viewDetail": "View details",
     "close": "Close"
   },
+  "share": {
+    "button": "Share",
+    "title": "Share as image",
+    "tagline": "Live Steam player-count bubble map",
+    "asOf": "as of {time}",
+    "generating": "Generating image...",
+    "download": "Save image",
+    "share": "Share",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "shareText": "Live Steam player-count bubble map",
+    "error": "Couldn't generate the image. Please try again.",
+    "retry": "Retry",
+    "close": "Close"
+  },
   "modal": {
     "players": "Current players",
     "peak24h": "24h peak",

@@ -9,7 +9,7 @@
 
 - **Phase 1~4 프로덕션 라이브.** 자동 동접 수집(top ~3,000 — Tier 1 10분 · Tier 2 30분 · Tier 3 3시간) + 버블맵·랭킹 테이블·게임 상세 페이지 + SEO(sitemap·hreflang·JSON-LD)가 무인으로 가동 중.
 - **로케일**: `ko`(기본) + `en` 오픈. `ja`/`zh`·유럽어는 동결(트리거 대기).
-- **남은 Launch 작업**: Phase 5(캡처/OG/Analytics), Discord 알림 연결.
+- **남은 Launch 작업**: Phase 5(OG 이미지·Analytics·강등 검증), Discord 알림 연결. (공유/스크린샷은 완료)
 
 ## 기술 스택
 
@@ -110,7 +110,7 @@ scripts/                # 목업 fixture 생성기
 ## 로드맵 — Launch 슬라이스
 
 각 Phase 완료 시 프로덕션 배포. 상세 기준은 [CLAUDE.md](./CLAUDE.md) 6번, Phase별 체크리스트는 GitHub 이슈로 추적.
-**Phase 1~4 라이브, Phase 5만 남음** (노출 우선 전략으로 Phase 4를 3보다 먼저 진행).
+**Phase 1~4 라이브 + Phase 5 진행 중** (노출 우선 전략으로 Phase 4를 3보다 먼저 진행).
 
 ### Phase 1 — 기반 ([#1](https://github.com/ZunaTtang/steambubbles/issues/1)) ✅ LIVE
 
@@ -146,9 +146,10 @@ scripts/                # 목업 fixture 생성기
 - [x] on-demand ISR (빌드 프리렌더 제거 — 빌드 시 Neon 부하 회피) · 개인정보·소개 페이지
 - [ ] 애드센스 신청 (콘텐츠·유입 축적 후) + 문의 연락처
 
-### Phase 5 — 마감 ([#5](https://github.com/ZunaTtang/steambubbles/issues/5)) ⬜ 남음
+### Phase 5 — 마감 ([#5](https://github.com/ZunaTtang/steambubbles/issues/5)) 🔄 진행 중
 
-- [ ] snapdom 캡처 + 워터마크 / `/[locale]/og` 동적 OG 이미지
+- [x] 공유/스크린샷: 버블맵 뷰포트 → 브랜드 카드(헤더·Top3·워터마크) PNG. Pixi extract + snapdom, 다운로드·Web Share·클립보드 복사
+- [ ] `/[locale]/og` 동적 OG 이미지
 - [ ] Vercel Analytics
 - [ ] 우아한 강등 동작 검증 (store 장애 시 가격 UI 숨김, 동접 정상)
 

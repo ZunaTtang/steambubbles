@@ -21,11 +21,15 @@ export default function BubbleMap({
   showName,
   showChange,
   onSelect,
+  onReady,
   className,
 }: BubbleMapProps) {
   const tControls = useTranslations("controls");
   const hostRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<BubbleEngine | null>(null);
+  // 최신 onReady 참조 (마운트 1회 effect에서 안전하게 호출)
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
   // hover 툴팁 — 내용은 state, 위치는 커서를 따라 ref로 직접 갱신(리렌더 회피)
   const [hoverGame, setHoverGame] = useState<GameBubbleData | null>(null);
   const cursorRef = useRef({ x: 0, y: 0 });
@@ -58,6 +62,10 @@ export default function BubbleMap({
         engine = created;
         engineRef.current = created;
         created.update(latestRef.current);
+        // 공유 기능용 캡처 핸들 노출
+        onReadyRef.current?.({
+          capture: (r) => created.captureViewport(r),
+        });
       })
       .catch(() => {
         // WebGL/WebGPU 초기화 실패 — 버블맵 없이 나머지 UI는 유지
@@ -65,6 +73,7 @@ export default function BubbleMap({
     return () => {
       cancelled = true;
       if (engineRef.current === engine) engineRef.current = null;
+      onReadyRef.current?.(null);
       engine?.destroy();
       engine = null;
     };

@@ -1,6 +1,6 @@
 import { forceCollide, forceSimulation, forceX, forceY } from "d3-force";
 import type { Force, ForceX, ForceY, Simulation } from "d3-force";
-import { Application, Container } from "pixi.js";
+import { Application, Container, Rectangle } from "pixi.js";
 import type { ColorBy, GameBubbleData, SizeBy } from "@/lib/types";
 import { colorForGame } from "./colors";
 import {
@@ -203,6 +203,25 @@ export class BubbleEngine {
     // nodes() 재설정이 forceCollide 반경 캐시를 갱신한다 — applyRadii 이후 호출 필수
     this.sim.nodes(list.map((n) => n.sim));
     if (membershipChanged || radiiChanged) this.simAlpha = ALPHA_REHEAT; // 완만한 재가열
+  }
+
+  // 현재 뷰포트(팬/줌 반영)를 PNG data URL로 추출 — 공유 카드용 (CLAUDE.md 5-4).
+  // WebGL 캔버스는 snapdom이 직접 못 읽으므로 Pixi extract로 프레임을 떠서 넘긴다.
+  async captureViewport(resolution = 2): Promise<string | null> {
+    if (this.destroyed) return null;
+    try {
+      // 상시 애니메이션 중 — 추출 직전 1프레임 강제 렌더로 최신 상태 보장
+      this.app.renderer.render(this.app.stage);
+      return await this.app.renderer.extract.base64({
+        target: this.app.stage,
+        frame: new Rectangle(0, 0, this.width, this.height),
+        resolution,
+        antialias: true,
+        format: "png",
+      });
+    } catch {
+      return null; // 컨텍스트 유실 등 — 공유 UI가 우아하게 처리
+    }
   }
 
   // 팬/줌 초기화 — 줌아웃하다 길을 잃었을 때 복귀 (모바일 오버레이 버튼에서 호출)

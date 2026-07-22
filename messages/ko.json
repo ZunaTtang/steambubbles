@@ -54,6 +54,21 @@
     "viewDetail": "자세히 보기",
     "close": "닫기"
   },
+  "share": {
+    "button": "공유",
+    "title": "이미지로 공유",
+    "tagline": "실시간 스팀 동접 버블맵",
+    "asOf": "{time} 기준",
+    "generating": "이미지 만드는 중...",
+    "download": "이미지 저장",
+    "share": "공유하기",
+    "copy": "복사",
+    "copied": "복사됨!",
+    "shareText": "스팀 실시간 동접 버블맵",
+    "error": "이미지를 만들지 못했어요. 다시 시도해 주세요.",
+    "retry": "다시 시도",
+    "close": "닫기"
+  },
   "modal": {
     "players": "현재 동접",
     "peak24h": "24시간 피크",

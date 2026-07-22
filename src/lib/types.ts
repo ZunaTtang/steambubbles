@@ -119,6 +119,12 @@ export interface TrendPoint {
 export type SizeBy = "players" | "peak24h";
 export type ColorBy = "change" | "review";
 
+// 버블맵 캡처 핸들 — 공유 카드가 현재 뷰포트를 PNG(data URL)로 뜰 때 사용
+export interface BubbleMapHandle {
+  // 현재 팬/줌 상태의 뷰포트를 PNG data URL로. 실패 시 null
+  capture(resolution?: number): Promise<string | null>;
+}
+
 export interface BubbleMapProps {
   // 이미 범위/장르/검색/즐겨찾기 필터가 적용된 목록 (최대 ~300 노드)
   games: GameBubbleData[];
@@ -127,6 +133,8 @@ export interface BubbleMapProps {
   showName: boolean;
   showChange: boolean;
   onSelect: (game: GameBubbleData) => void;
+  // 엔진 준비 시 캡처 핸들 전달(언마운트 시 null) — 공유 기능용
+  onReady?: (handle: BubbleMapHandle | null) => void;
   className?: string;
 }
 
