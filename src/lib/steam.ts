@@ -1,4 +1,5 @@
 import { fetchJsonWithRetry, sleep } from "./fetch-util";
+import { cleanSteamText } from "./format";
 
 // Steam 공식/공개 API 클라이언트 (CLAUDE.md 3).
 // api.steampowered.com(일 10만 콜)과 store.steampowered.com(~200콜/5분/IP)은
@@ -219,7 +220,7 @@ export async function getAppDetails(
     genreIds,
     description:
       typeof d.short_description === "string" && d.short_description.trim()
-        ? d.short_description
+        ? cleanSteamText(d.short_description) || null
         : null,
     releaseDate: d.release_date?.date?.trim() || null,
   };

@@ -18,6 +18,7 @@ import {
 } from "@/lib/data";
 import type { Currency, GameBubbleData, TrendPoint } from "@/lib/types";
 import {
+  cleanSteamText,
   formatChangePct,
   formatPlayersFull,
   formatPrice,
@@ -226,7 +227,10 @@ export default async function GameDetailPage({ params }: Props) {
       : t("detail.sReviewNone"),
     priceSentence,
   ].join(" ");
-  const introText = detail.description ?? fallbackIntro;
+  // 저장된 소개(백필 시점엔 원본 HTML일 수 있음)도 렌더 시 정리 — 이미 정리된 값엔 무해
+  const introText = detail.description
+    ? cleanSteamText(detail.description)
+    : fallbackIntro;
 
   // 평점 긍정률 (긍정/(긍정+부정)) — 흥미 신호 바
   const polarized = detail.totalPositive + detail.totalNegative;
