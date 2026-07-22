@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { hasLocale } from "next-intl";
-import { setRequestLocale } from "next-intl/server";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 import {
   ALL_LOCALES,
   CURRENCY_COOKIE,
@@ -10,7 +10,7 @@ import {
   type Locale,
 } from "@/i18n/locales";
 import { getBubbleSnapshot, getGenreOptions } from "@/lib/data";
-import { buildAlternates } from "@/lib/site";
+import { buildAlternates, getSiteUrl } from "@/lib/site";
 import type { Currency } from "@/lib/types";
 import BubbleApp from "@/components/app/BubbleApp";
 
@@ -24,7 +24,27 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { locale: rawLocale } = await params;
   const locale = hasLocale(ALL_LOCALES, rawLocale) ? rawLocale : DEFAULT_LOCALE;
-  return { alternates: buildAlternates("", locale) };
+  const t = await getTranslations({ locale });
+  const alternates = buildAlternates("", locale);
+  const ogUrl = `${getSiteUrl()}/${locale}/og`;
+  return {
+    alternates,
+    openGraph: {
+      title: t("site.title"),
+      description: t("site.description"),
+      url: alternates.canonical,
+      siteName: t("site.title"),
+      locale,
+      type: "website",
+      images: [{ url: ogUrl, width: 1200, height: 630 }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: t("site.title"),
+      description: t("site.description"),
+      images: [ogUrl],
+    },
+  };
 }
 
 export default async function HomePage({ params }: Props) {
