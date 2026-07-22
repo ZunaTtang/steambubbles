@@ -247,9 +247,17 @@ export default function GameModal({
             )}
           </div>
 
-          {/* 모달 → 상세 페이지 딥링크 (SEO 유입구, CLAUDE.md 5-1) */}
+          {/* 모달 → 상세 페이지 딥링크 (SEO 유입구, CLAUDE.md 5-1).
+              앱 내부 진입 표식 — 상세의 스마트 백이 router.back()으로 복귀하도록 */}
           <Link
             href={`/game/${game.appid}`}
+            onClick={() => {
+              try {
+                sessionStorage.setItem("sb:nav", "app");
+              } catch {
+                /* 저장소 접근 불가 — 상세에서 홈 push로 폴백 */
+              }
+            }}
             className="block w-full rounded-md bg-[#16c784]/15 px-3 py-2 text-center text-sm font-semibold text-[#16c784] hover:bg-[#16c784]/25"
           >
             {t("detailLink")} →

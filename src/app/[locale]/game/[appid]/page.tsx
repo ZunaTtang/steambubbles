@@ -14,6 +14,7 @@ import { getBubbleSnapshot, getGenreOptions, getTrend } from "@/lib/data";
 import type { Currency, GameBubbleData, TrendPoint } from "@/lib/types";
 import { formatPlayersFull, formatPrice } from "@/lib/format";
 import { buildAlternates, getSiteUrl } from "@/lib/site";
+import DetailBackBar from "@/components/app/DetailBackBar";
 
 // 게임 상세 (CLAUDE.md 5-3) — 자연문 콘텐츠 + 추이 + SEO 메타/구조화 데이터.
 // 쿠키 통화 대신 로케일 기본 통화로 렌더 → 정적 프리렌더/ISR 가능 (SEO 유리).
@@ -213,20 +214,14 @@ export default async function GameDetailPage({ params }: Props) {
   const updatedTimeIso = updatedAt;
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-8">
+    <>
+      {/* 모바일 복귀 UX: 스크롤해도 닿는 고정 뒤로가기 바 (스마트 백) */}
+      <DetailBackBar />
+      <main className="mx-auto max-w-2xl px-4 pb-8 pt-6">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-
-      {/* 브레드크럼 */}
-      <nav className="mb-4 text-sm text-neutral-500">
-        <Link href="/" className="hover:text-neutral-300">
-          {t("detail.home")}
-        </Link>
-        <span className="mx-1.5">/</span>
-        <span className="text-neutral-400">{game.name}</span>
-      </nav>
 
       {game.headerImage && (
         // 스팀 CDN 외부 이미지 — 상세 페이지는 정적 프리렌더라 일반 img 사용
@@ -347,6 +342,7 @@ export default async function GameDetailPage({ params }: Props) {
           {t("nav.privacy")}
         </Link>
       </footer>
-    </main>
+      </main>
+    </>
   );
 }

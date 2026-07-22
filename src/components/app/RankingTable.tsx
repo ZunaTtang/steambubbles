@@ -27,6 +27,8 @@ interface RankingTableProps {
   onSelect: (game: GameBubbleData) => void;
   favorites: Set<number>;
   onToggleFavorite: (appid: number) => void;
+  // sticky 상단 바 높이 — "#ranking" 앵커 점프가 바에 가리지 않도록 scroll-margin 보정
+  topOffset?: number;
 }
 
 // 정렬용 값 추출 — null 가격은 최하위, 무료는 0
@@ -64,6 +66,7 @@ export default function RankingTable({
   onSelect,
   favorites,
   onToggleFavorite,
+  topOffset = 0,
 }: RankingTableProps) {
   const t = useTranslations("table");
   const tCommon = useTranslations("common");
@@ -114,7 +117,11 @@ export default function RankingTable({
   ];
 
   return (
-    <section id="ranking" className="px-3 py-6">
+    <section
+      id="ranking"
+      className="px-3 py-6"
+      style={{ scrollMarginTop: topOffset + 8 }}
+    >
       <h2 className="mb-3 text-base font-bold text-neutral-200">
         {t("title")}
       </h2>

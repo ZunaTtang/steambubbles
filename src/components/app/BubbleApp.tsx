@@ -84,6 +84,9 @@ export default function BubbleApp({
   const [shareOpen, setShareOpen] = useState(false);
   // 버블맵 엔진 캡처 핸들 — 공유 이미지 생성용 (엔진 준비 시 채워짐)
   const mapHandleRef = useRef<BubbleMapHandle | null>(null);
+  // sticky 상단 바 높이 — 첫 화면 맵 영역을 (뷰포트 − 헤더)로 정확히 배분 + 랭킹 점프 보정
+  const headerRef = useRef<HTMLDivElement>(null);
+  const [headerH, setHeaderH] = useState(0);
 
   const { settings, update: updateSettings } = useSettings();
   const { favorites, toggle: toggleFavorite } = useFavorites();
@@ -172,6 +175,17 @@ export default function BubbleApp({
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
+  // 상단 바 실제 높이 추적 (모바일 2행/데스크톱 1행 등 가변) → 맵 높이·스크롤 보정에 사용
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const measure = () => setHeaderH(el.offsetHeight);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // 실측 최대 랭크 — deep 스냅샷이 "실제로 적용된" 뒤에만 안다 (top 스냅샷은 1,000 컷이라 미지).
   // scope(요청값)가 아니라 appliedScope 기준 — 요청 직후 top 스냅샷이 남아있는 렌더 창에서
   // 1,000을 실측치로 오판해 잘못 폴백하는 레이스 방지.
@@ -254,8 +268,8 @@ export default function BubbleApp({
 
   return (
     <div className="flex min-h-screen flex-col">
-      {/* 첫 화면 = 상단 바 + 버블맵 + 상태 스트립 (풀 뷰포트) */}
-      <div className="flex h-dvh flex-col">
+      {/* 상단 바 — 문서 레벨 sticky: 랭킹 테이블로 스크롤해도 필터·검색·기간 유지 */}
+      <div ref={headerRef} className="sticky top-0 z-30">
         <TopBar
           period={period}
           onPeriodChange={setPeriod}
@@ -277,7 +291,13 @@ export default function BubbleApp({
           onCurrencyChange={changeCurrency}
           onSelectGame={setSelectedGame}
         />
+      </div>
 
+      {/* 첫 화면 = 버블맵 + 상태 스트립 (헤더를 뺀 뷰포트 높이) */}
+      <div
+        className="flex flex-col"
+        style={{ height: `calc(100dvh - ${headerH}px)` }}
+      >
         <div className="relative min-h-0 flex-1">
           {filteredGames.length === 0 ? (
             // 재조회 중(예: 딥 밴드 첫 선택)에는 빈 결과가 잠정 상태 — 스피너만 보이고
@@ -390,6 +410,7 @@ export default function BubbleApp({
         onSelect={setSelectedGame}
         favorites={favorites}
         onToggleFavorite={toggleFavorite}
+        topOffset={headerH}
       />
 
       {/* 버블 뽑기 — 후보는 스냅샷 전체(화면 필터와 독립), 당첨작 상세는 GameModal 재사용 */}
