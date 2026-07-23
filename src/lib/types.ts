@@ -55,10 +55,11 @@ export const RANGE_BOUNDS: Record<RangeKey, [number, number]> = {
 };
 // 이 순위를 넘는 구간을 보려면 deep 스냅샷이 필요하다
 export const TOP_SCOPE_MAX_RANK = 1000;
-// 커스텀 범위 상한 — deep 스냅샷 최대 랭크(Tier 3 포함) + 한 화면 최대 노드 수(가독성·60fps).
-// 커스텀 min/max 직접 입력 시 이 한계 안으로 clamp한다.
+// 커스텀 범위 상한 — deep 스냅샷 최대 랭크(Tier 3 포함). 커스텀 min/max는 [1, 3000]으로 clamp.
+// MAX_RANGE_SPAN(한 화면 최대 노드): 2026-07 사용자 결정으로 전체 범위(3,000)까지 허용.
+// 넓게 잡으면 버블맵이 수천 노드를 그려 무겁고 버블이 작아진다(가독성 저하) — 사용자 수용.
 export const DEEP_SCOPE_MAX_RANK = 3000;
-export const MAX_RANGE_SPAN = 300;
+export const MAX_RANGE_SPAN = 3000;
 
 export type CountryCode = "kr" | "us";
 export type Currency = "KRW" | "USD";
