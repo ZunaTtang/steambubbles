@@ -55,6 +55,10 @@ export const RANGE_BOUNDS: Record<RangeKey, [number, number]> = {
 };
 // 이 순위를 넘는 구간을 보려면 deep 스냅샷이 필요하다
 export const TOP_SCOPE_MAX_RANK = 1000;
+// 커스텀 범위 상한 — deep 스냅샷 최대 랭크(Tier 3 포함) + 한 화면 최대 노드 수(가독성·60fps).
+// 커스텀 min/max 직접 입력 시 이 한계 안으로 clamp한다.
+export const DEEP_SCOPE_MAX_RANK = 3000;
+export const MAX_RANGE_SPAN = 300;
 
 export type CountryCode = "kr" | "us";
 export type Currency = "KRW" | "USD";

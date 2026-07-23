@@ -64,6 +64,10 @@ export default function BubbleApp({
 
   const [period, setPeriod] = useState<Period>("24h");
   const [range, setRange] = useState<RangeKey>("top100");
+  // 커스텀 순위 범위(직접 입력). null이면 프리셋 range 사용 — 실제 필터 경계는 아래 activeBounds
+  const [customRange, setCustomRange] = useState<readonly [number, number] | null>(
+    null,
+  );
   // top = SSR 초기 스냅샷(상위 1,000). 딥 밴드(1,001~)나 뽑기를 쓰는 순간 deep(3,000)으로
   // 승급해 재조회 — 초기 페이로드는 가볍게, 딥 데이터는 필요할 때만 (Tier 3 오픈)
   const [scope, setScope] = useState<SnapshotScope>("top");
@@ -150,10 +154,18 @@ export default function BubbleApp({
     setCurrency(next);
   }, []);
 
-  // 딥 밴드(1,001~) 선택 시 deep 스냅샷으로 승급 (한 번 승급하면 유지)
-  const changeRange = useCallback((next: RangeKey) => {
+  // 프리셋 선택 — 커스텀 해제. 딥 밴드(1,001~) 선택 시 deep 스냅샷으로 승급(유지)
+  const selectPreset = useCallback((next: RangeKey) => {
+    setCustomRange(null);
     setRange(next);
     if (RANGE_BOUNDS[next][1] > TOP_SCOPE_MAX_RANK) setScope("deep");
+  }, []);
+
+  // 커스텀 범위 직접 입력 — clamp/스팬 상한은 RangeControl이 적용해 넘겨준다.
+  // max가 1,000 초과면 deep 스냅샷 승급
+  const applyCustomRange = useCallback((min: number, max: number) => {
+    setCustomRange([min, max]);
+    if (max > TOP_SCOPE_MAX_RANK) setScope("deep");
   }, []);
 
   // 뽑기는 전체 풀에서 추첨하는 게 정직 — 열 때 deep 로드를 함께 트리거
@@ -199,12 +211,17 @@ export default function BubbleApp({
   // 구간으로 폴백 — "조건에 맞는 게임이 없습니다" 데드엔드 방지
   useEffect(() => {
     if (maxAvailableRank === null) return;
+    if (customRange) {
+      // 커스텀 최소가 실측 최대를 넘으면(데이터 밖) 커스텀 해제 → 프리셋 복귀로 데드엔드 방지
+      if (customRange[0] > maxAvailableRank) setCustomRange(null);
+      return;
+    }
     if (RANGE_BOUNDS[range][0] <= maxAvailableRank) return;
     const fallback = [...RANGES]
       .reverse()
       .find((r) => RANGE_BOUNDS[r][0] <= maxAvailableRank);
     if (fallback) setRange(fallback);
-  }, [maxAvailableRank, range]);
+  }, [maxAvailableRank, range, customRange]);
 
   const toggleGenre = useCallback((id: number) => {
     setSelectedGenres((prev) => {
@@ -222,12 +239,13 @@ export default function BubbleApp({
     setSelectedGenres(new Set());
     setFavoritesOnly(false);
     // deep 조회 실패로 스코프가 top으로 되돌아간 상태에서 딥 구간이 남아있는 등
-    // 어떤 조합에서도 확실한 탈출구가 되도록 범위도 초기화
+    // 어떤 조합에서도 확실한 탈출구가 되도록 범위(프리셋·커스텀)도 초기화
     setRange("top100");
+    setCustomRange(null);
   }, []);
 
   const filteredGames = useMemo(() => {
-    const [min, max] = RANGE_BOUNDS[range];
+    const [min, max] = customRange ?? RANGE_BOUNDS[range];
     const q = search.trim().toLowerCase();
     return snapshot.games.filter((g) => {
       if (g.rank < min || g.rank > max) return false;
@@ -247,7 +265,15 @@ export default function BubbleApp({
       if (favoritesOnly && !favorites.has(g.appid)) return false;
       return true;
     });
-  }, [snapshot.games, range, selectedGenres, search, favoritesOnly, favorites]);
+  }, [
+    snapshot.games,
+    range,
+    customRange,
+    selectedGenres,
+    search,
+    favoritesOnly,
+    favorites,
+  ]);
 
   const updatedTime = mounted
     ? new Date(snapshot.updatedAt).toLocaleTimeString(locale, {
@@ -256,9 +282,10 @@ export default function BubbleApp({
       })
     : "";
 
-  // 공유 카드용 라벨 (TopBar의 범위 라벨 규칙과 동일)
-  const rangeLabelText =
-    range === "top100"
+  // 공유 카드용 라벨 (커스텀 범위 반영, TopBar의 범위 라벨 규칙과 동일)
+  const rangeLabelText = customRange
+    ? tControls("rangeBand", { lo: customRange[0], hi: customRange[1] })
+    : range === "top100"
       ? tControls("rangeTop100")
       : tControls("rangeBand", {
           lo: RANGE_BOUNDS[range][0],
@@ -274,7 +301,9 @@ export default function BubbleApp({
           period={period}
           onPeriodChange={setPeriod}
           range={range}
-          onRangeChange={changeRange}
+          onRangeChange={selectPreset}
+          customRange={customRange}
+          onApplyCustom={applyCustomRange}
           maxAvailableRank={maxAvailableRank}
           genres={genres}
           selectedGenres={selectedGenres}
