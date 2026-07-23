@@ -7,9 +7,9 @@
 
 ## 현재 상태
 
-- **Phase 1~4 프로덕션 라이브.** 자동 동접 수집(top ~3,000 — Tier 1 10분 · Tier 2 30분 · Tier 3 3시간) + 버블맵·랭킹 테이블·게임 상세 페이지 + SEO(sitemap·hreflang·JSON-LD)가 무인으로 가동 중.
+- **Launch 슬라이스(Phase 1~5) 프로덕션 라이브 완료.** 자동 동접 수집(top ~3,000 — Tier 1 10분 · Tier 2 30분 · Tier 3 3시간) + 버블맵·랭킹 테이블·게임 상세(소개·데이터 대시보드) + SEO(sitemap·hreflang·JSON-LD·동적 OG) + 공유/스크린샷 + Analytics가 무인으로 가동 중.
 - **로케일**: `ko`(기본) + `en` 오픈. `ja`/`zh`·유럽어는 동결(트리거 대기).
-- **남은 Launch 작업**: Phase 5(OG 이미지·Analytics·강등 검증), Discord 알림 연결. (공유/스크린샷은 완료)
+- **남은 운영 작업**: Discord 알림 연결(`ALERT_WEBHOOK_URL` 환경변수), Vercel 대시보드에서 Web Analytics 활성화, 애드센스 신청(유입 축적 후).
 
 ## 기술 스택
 
@@ -110,7 +110,7 @@ scripts/                # 목업 fixture 생성기
 ## 로드맵 — Launch 슬라이스
 
 각 Phase 완료 시 프로덕션 배포. 상세 기준은 [CLAUDE.md](./CLAUDE.md) 6번, Phase별 체크리스트는 GitHub 이슈로 추적.
-**Phase 1~4 라이브 + Phase 5 진행 중** (노출 우선 전략으로 Phase 4를 3보다 먼저 진행).
+**Phase 1~5 전부 라이브 — Launch 슬라이스 완료** (노출 우선 전략으로 Phase 4를 3보다 먼저 진행).
 
 ### Phase 1 — 기반 ([#1](https://github.com/ZunaTtang/steambubbles/issues/1)) ✅ LIVE
 
@@ -149,12 +149,12 @@ scripts/                # 목업 fixture 생성기
 - [x] on-demand ISR (빌드 프리렌더 제거 — 빌드 시 Neon 부하 회피) · 개인정보·소개 페이지
 - [ ] 애드센스 신청 (콘텐츠·유입 축적 후) + 문의 연락처
 
-### Phase 5 — 마감 ([#5](https://github.com/ZunaTtang/steambubbles/issues/5)) 🔄 진행 중
+### Phase 5 — 마감 ([#5](https://github.com/ZunaTtang/steambubbles/issues/5)) ✅ LIVE
 
 - [x] 공유/스크린샷: 버블맵 뷰포트 → 브랜드 카드(헤더·Top3·워터마크) PNG. Pixi extract + snapdom, 다운로드·Web Share·클립보드 복사
 - [x] `/[locale]/og` 동적 OG 이미지 — next/og로 top 7 동접 리더보드(1200×630) + 홈 openGraph/twitter 연결
 - [x] Vercel Analytics (`<Analytics/>` — 배포 환경 수집)
-- [ ] 우아한 강등 동작 검증 (store 장애 시 가격 UI 숨김, 동접 정상)
+- [x] 우아한 강등 동작 검증 — store stale 시 가격 UI 전면 숨김(할인 링·랭킹 컬럼·모달·상세·상태 스트립) + 동접/랭킹 정상 유지 확인. 동접은 별도 도메인(api.steampowered)이라 store 장애와 독립
 
 ### 로케일
 
