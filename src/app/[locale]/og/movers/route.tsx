@@ -13,6 +13,8 @@ import type { Period } from "@/lib/types";
 
 // "오늘의 급상승" 공유 이미지 (CLAUDE.md 5-1 확장) — 급상승 TOP 7 리더보드 1200×630.
 // satori 한글 임베딩 불안정 → 이미지 텍스트는 Latin(nameEn·숫자·브랜드). X/Threads 유입 루프용.
+// 게임 썸네일은 서버에서 미리 받아 data URI로 임베드(원격 fetch 실패 시 카드 전체가 깨지지
+// 않게 — 실패분만 이니셜 박스로 폴백, 우아한 강등).
 
 export const runtime = "nodejs";
 const SIZE = { width: 1200, height: 630 };
@@ -25,6 +27,29 @@ function toLocale(raw: string): Locale {
 }
 function toPeriod(raw: string | null): Period {
   return raw === "7d" || raw === "30d" ? raw : "24h";
+}
+
+// 헤더 썸네일 → data URI. headerImage(정본) 실패 시 appid 기반 URL로 재시도, 둘 다 실패면 null.
+async function thumbDataUri(
+  headerImage: string | null,
+  appid: number,
+): Promise<string | null> {
+  const urls = [
+    headerImage,
+    `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appid}/header.jpg`,
+  ].filter((u): u is string => !!u);
+  for (const u of urls) {
+    try {
+      const res = await fetch(u, { signal: AbortSignal.timeout(2500) });
+      if (!res.ok) continue;
+      const buf = await res.arrayBuffer();
+      const ct = res.headers.get("content-type") || "image/jpeg";
+      return `data:${ct};base64,${Buffer.from(buf).toString("base64")}`;
+    } catch {
+      /* 다음 후보로 */
+    }
+  }
+  return null;
 }
 
 function Logo() {
@@ -45,18 +70,27 @@ export async function GET(
   const locale = toLocale(raw);
   const period = toPeriod(new URL(req.url).searchParams.get("period"));
 
-  let top: { name: string; players: number; delta: number }[] = [];
+  let top: {
+    name: string;
+    players: number;
+    delta: number;
+    thumb: string | null;
+  }[] = [];
   try {
     const snap = await getBubbleSnapshot({
       period,
       currency: DEFAULT_CURRENCY[locale],
       locale,
     });
-    top = topMovers(snap.games, "up", 7).map((g) => ({
-      name: g.nameEn || g.name || `#${g.appid}`,
-      players: g.players,
-      delta: moverDelta(g),
-    }));
+    // 썸네일은 병렬 프리페치 — 7개라 부하 미미, 라우트는 30분 캐시
+    top = await Promise.all(
+      topMovers(snap.games, "up", 7).map(async (g) => ({
+        name: g.nameEn || g.name || `#${g.appid}`,
+        players: g.players,
+        delta: moverDelta(g),
+        thumb: await thumbDataUri(g.headerImage, g.appid),
+      })),
+    );
   } catch {
     top = []; // DB 일시 오류 — 브랜드 카드만 (우아한 강등)
   }
@@ -72,7 +106,7 @@ export async function GET(
           background:
             "radial-gradient(120% 120% at 50% 0%, #15151f 0%, #0a0a0f 60%)",
           color: "#ffffff",
-          padding: "32px 52px",
+          padding: "30px 48px",
           fontFamily: "sans-serif",
         }}
       >
@@ -85,7 +119,9 @@ export async function GET(
         >
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <Logo />
-            <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: "-0.02em" }}>
+            <div
+              style={{ fontSize: 40, fontWeight: 800, letterSpacing: "-0.02em" }}
+            >
               steambubbles
             </div>
           </div>
@@ -110,7 +146,7 @@ export async function GET(
             display: "flex",
             flexDirection: "column",
             flex: 1,
-            marginTop: 20,
+            marginTop: 16,
           }}
         >
           {top.length === 0 ? (
@@ -133,32 +169,60 @@ export async function GET(
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  padding: "8px 0",
+                  padding: "6px 0",
                   borderBottom: "1px solid #1e1e2a",
                 }}
               >
                 <div
                   style={{
                     display: "flex",
-                    alignItems: "center",
                     justifyContent: "center",
-                    minWidth: 168,
-                    height: 40,
-                    borderRadius: 10,
-                    background: "rgba(22,199,132,0.14)",
-                    color: GREEN,
-                    fontSize: 23,
+                    width: 32,
+                    fontSize: 24,
                     fontWeight: 800,
-                    marginRight: 22,
-                    padding: "0 14px",
+                    color: i < 3 ? GREEN : MUTED,
                   }}
                 >
-                  {formatPlayerDelta(g.delta, "en")}
+                  {`${i + 1}`}
                 </div>
+                {g.thumb ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={g.thumb}
+                    alt=""
+                    width={102}
+                    height={48}
+                    style={{
+                      borderRadius: 8,
+                      objectFit: "cover",
+                      marginLeft: 10,
+                      marginRight: 20,
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: 102,
+                      height: 48,
+                      borderRadius: 8,
+                      marginLeft: 10,
+                      marginRight: 20,
+                      background: "#1e1e2a",
+                      fontSize: 20,
+                      fontWeight: 700,
+                      color: MUTED,
+                    }}
+                  >
+                    {g.name.slice(0, 2)}
+                  </div>
+                )}
                 <div
                   style={{
                     flex: 1,
-                    fontSize: 30,
+                    fontSize: 27,
                     fontWeight: 600,
                     color: "#f1f3f5",
                     overflow: "hidden",
@@ -170,10 +234,31 @@ export async function GET(
                 </div>
                 <div
                   style={{
-                    fontSize: 28,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    minWidth: 158,
+                    height: 42,
+                    borderRadius: 10,
+                    background: "rgba(22,199,132,0.14)",
+                    color: GREEN,
+                    fontSize: 22,
+                    fontWeight: 800,
+                    marginLeft: 16,
+                    padding: "0 14px",
+                  }}
+                >
+                  {formatPlayerDelta(g.delta, "en")}
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    width: 128,
+                    fontSize: 24,
                     fontWeight: 700,
                     color: "#ffffff",
-                    marginLeft: 20,
+                    marginLeft: 16,
                   }}
                 >
                   {formatPlayersFull(g.players, "en")}
@@ -188,7 +273,7 @@ export async function GET(
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            marginTop: 18,
+            marginTop: 16,
           }}
         >
           <div style={{ fontSize: 20, color: MUTED }}>

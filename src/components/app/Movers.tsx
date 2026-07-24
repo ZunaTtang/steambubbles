@@ -10,12 +10,7 @@ import {
   formatPlayersFull,
 } from "@/lib/format";
 import { moverDelta, reasonTag, topMovers, type ReasonTag } from "@/lib/movers";
-import {
-  canShareFiles,
-  downloadBlob,
-  pngFile,
-  shareFile,
-} from "@/lib/capture";
+import MoversShareModal from "./MoversShareModal";
 
 // 오늘의 무버스 (CLAUDE.md 5-1 확장 콘텐츠) — 급상승/급락 TOP + "왜" 태그.
 // 범위 필터와 독립인 전역 컷. 클릭 → GameModal 재사용. 공유 버튼 → /og/movers 이미지.
@@ -39,30 +34,10 @@ export default function Movers({ games, period, onSelect }: MoversProps) {
   // 시간 의존 태그(new)는 마운트 후에만 (하이드레이션 불일치 방지)
   const [nowMs, setNowMs] = useState(0);
   useEffect(() => setNowMs(Date.now()), []);
-  const [sharing, setSharing] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const gainers = useMemo(() => topMovers(games, "up", 8), [games]);
   const losers = useMemo(() => topMovers(games, "down", 8), [games]);
-
-  const shareGainers = async () => {
-    if (sharing) return;
-    setSharing(true);
-    try {
-      const res = await fetch(`/${locale}/og/movers?period=${period}`);
-      if (!res.ok) throw new Error(String(res.status));
-      const blob = await res.blob();
-      const file = pngFile(blob, "steambubbles-movers.png");
-      if (canShareFiles(file)) {
-        await shareFile(file, { title: t("shareTitle"), text: t("shareText") });
-      } else {
-        downloadBlob(blob, "steambubbles-movers.png");
-      }
-    } catch {
-      // 실패 무시 — 부가 기능
-    } finally {
-      setSharing(false);
-    }
-  };
 
   if (gainers.length === 0 && losers.length === 0) {
     return (
@@ -86,9 +61,8 @@ export default function Movers({ games, period, onSelect }: MoversProps) {
         </div>
         {gainers.length > 0 && (
           <button
-            onClick={shareGainers}
-            disabled={sharing}
-            className="flex items-center gap-1.5 rounded-md border border-[#16c784]/50 bg-[#16c784]/10 px-2.5 py-1.5 text-xs font-semibold text-[#16c784] transition hover:bg-[#16c784]/20 active:scale-[0.98] disabled:opacity-50 md:py-1"
+            onClick={() => setShareOpen(true)}
+            className="flex items-center gap-1.5 rounded-md border border-[#16c784]/50 bg-[#16c784]/10 px-2.5 py-1.5 text-xs font-semibold text-[#16c784] transition hover:bg-[#16c784]/20 active:scale-[0.98] md:py-1"
           >
             <svg
               width="14"
@@ -128,6 +102,12 @@ export default function Movers({ games, period, onSelect }: MoversProps) {
           onSelect={onSelect}
         />
       </div>
+
+      <MoversShareModal
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        period={period}
+      />
     </section>
   );
 }
