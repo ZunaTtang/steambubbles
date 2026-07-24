@@ -245,10 +245,13 @@ export default function BubbleApp({
   }, []);
 
   const filteredGames = useMemo(() => {
-    const [min, max] = customRange ?? RANGE_BOUNDS[range];
     const q = search.trim().toLowerCase();
+    const searching = q.length > 0;
+    const [min, max] = customRange ?? RANGE_BOUNDS[range];
     return snapshot.games.filter((g) => {
-      if (g.rank < min || g.rank > max) return false;
+      // 검색 중엔 순위 범위 밴드를 무시하고 전체(로드된 스냅샷)에서 찾는다 —
+      // 현재 범위(예: Top 100) 밖의 게임이라도 검색어에 맞으면 버블로 보여준다
+      if (!searching && (g.rank < min || g.rank > max)) return false;
       if (
         selectedGenres.size > 0 &&
         !g.genreIds.some((id) => selectedGenres.has(id))
@@ -256,7 +259,7 @@ export default function BubbleApp({
         return false;
       }
       if (
-        q &&
+        searching &&
         !g.name.toLowerCase().includes(q) &&
         !g.nameEn.toLowerCase().includes(q)
       ) {
@@ -318,7 +321,6 @@ export default function BubbleApp({
           onUpdateSettings={updateSettings}
           currency={currency}
           onCurrencyChange={changeCurrency}
-          onSelectGame={setSelectedGame}
         />
       </div>
 

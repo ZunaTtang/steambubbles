@@ -48,7 +48,6 @@ interface TopBarProps {
   onUpdateSettings: (partial: Partial<BubbleSettings>) => void;
   currency: Currency;
   onCurrencyChange: (currency: Currency) => void;
-  onSelectGame: (game: GameBubbleData) => void;
 }
 
 export default function TopBar({
@@ -72,7 +71,6 @@ export default function TopBar({
   onUpdateSettings,
   currency,
   onCurrencyChange,
-  onSelectGame,
 }: TopBarProps) {
   const t = useTranslations("controls");
   const tSite = useTranslations("site");
@@ -140,10 +138,12 @@ export default function TopBar({
               {suggestions.map((g) => (
                 <li key={g.appid}>
                   <button
-                    // blur보다 먼저 발화하도록 mousedown 사용
+                    // blur보다 먼저 발화하도록 mousedown 사용.
+                    // 모달 대신 그 게임으로 "검색 확정" → 맵이 해당 버블을 고립 표시(범위 무시).
+                    // 상세는 버블을 눌러서 (검색 = 버블을 보여주기)
                     onMouseDown={(e) => {
                       e.preventDefault();
-                      onSelectGame(g);
+                      onSearchChange(g.name);
                       setSearchFocused(false);
                     }}
                     className="flex w-full items-baseline gap-2 px-2.5 py-1.5 text-left text-sm text-neutral-200 hover:bg-neutral-800"
