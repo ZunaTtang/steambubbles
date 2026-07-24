@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/locales";
-import type { GameBubbleData, TrendPoint } from "@/lib/types";
+import type { Currency, GameBubbleData, PriceInfo, TrendPoint } from "@/lib/types";
 import {
   formatChangePct,
   formatPlayers,
@@ -18,6 +18,16 @@ interface GameModalProps {
   onClose: () => void;
   isFavorite: boolean;
   onToggleFavorite: (appid: number) => void;
+  // 온디맨드 갱신 시 요청 통화 (라이브로 받은 최신 가격 표시용)
+  currency: Currency;
+}
+
+// 온디맨드 갱신으로 라이브 교체되는 store 데이터 (동접·순위 등은 항상 최신이라 제외)
+interface FreshStoreData {
+  price: PriceInfo | null;
+  isFree: boolean;
+  reviewScore: number;
+  totalReviews: number;
 }
 
 export default function GameModal({
@@ -25,6 +35,7 @@ export default function GameModal({
   onClose,
   isFavorite,
   onToggleFavorite,
+  currency,
 }: GameModalProps) {
   const t = useTranslations("modal");
   const tCommon = useTranslations("common");
@@ -34,6 +45,8 @@ export default function GameModal({
   const dialogRef = useRef<HTMLDivElement>(null);
   const [trend, setTrend] = useState<TrendPoint[] | null>(null);
   const [imgError, setImgError] = useState(false);
+  // 온디맨드 갱신 결과 (있으면 가격·평점을 이 값으로 라이브 교체)
+  const [fresh, setFresh] = useState<FreshStoreData | null>(null);
 
   const appid = game?.appid;
 
@@ -54,6 +67,34 @@ export default function GameModal({
     return () => ctrl.abort();
   }, [appid]);
 
+  // 온디맨드 갱신 (CLAUDE.md 3-3) — 볼 때 이 게임의 가격·평점을 store에서 최신화.
+  // 서버가 쿨다운(6h)으로 게이트: 최근 갱신됐으면 refreshed:false로 즉시 반환(store 콜 없음).
+  // refreshed면 그 값으로 가격·평점을 라이브 교체 → "내가 보는 건 최신".
+  useEffect(() => {
+    if (appid === undefined) return;
+    setFresh(null);
+    const ctrl = new AbortController();
+    fetch(`/api/refresh/${appid}?currency=${currency}`, {
+      method: "POST",
+      signal: ctrl.signal,
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((d: (FreshStoreData & { refreshed: boolean }) | null) => {
+        if (d?.refreshed) {
+          setFresh({
+            price: d.price ?? null,
+            isFree: !!d.isFree,
+            reviewScore: d.reviewScore ?? 0,
+            totalReviews: d.totalReviews ?? 0,
+          });
+        }
+      })
+      .catch(() => {
+        // 갱신 실패는 무시 — 기존 스냅샷 값 유지 (우아한 강등)
+      });
+    return () => ctrl.abort();
+  }, [appid, currency]);
+
   // 포커스 이동 + body 스크롤 잠금
   useEffect(() => {
     if (appid === undefined) return;
@@ -67,6 +108,13 @@ export default function GameModal({
   }, [appid]);
 
   if (!game) return null;
+
+  // 가격·평점은 온디맨드 갱신값(fresh) 우선, 없으면 스냅샷 값
+  // (동접·순위·변화율·점유율은 store와 무관하므로 항상 스냅샷 값 유지)
+  const price = fresh ? fresh.price : game.price;
+  const isFree = fresh ? fresh.isFree : game.isFree;
+  const reviewScore = fresh ? fresh.reviewScore : game.reviewScore;
+  const totalReviews = fresh ? fresh.totalReviews : game.totalReviews;
 
   // 가벼운 포커스 트랩: Tab 순환 + ESC 닫기
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -187,10 +235,10 @@ export default function GameModal({
             <div>
               <dt className="text-xs text-neutral-500">{t("reviews")}</dt>
               <dd className="text-sm font-semibold text-neutral-100">
-                {tReview(String(game.reviewScore))}
+                {tReview(String(reviewScore))}
               </dd>
               <dd className="text-xs text-neutral-500">
-                {t("totalReviews", { count: game.totalReviews })}
+                {t("totalReviews", { count: totalReviews })}
               </dd>
             </div>
             <div>
@@ -208,27 +256,24 @@ export default function GameModal({
 
           <div className="mb-4 flex items-center gap-2 rounded-md border border-neutral-800 bg-neutral-900/60 px-3 py-2">
             <span className="text-xs text-neutral-500">{t("price")}</span>
-            {game.isFree ? (
+            {isFree ? (
               <span className="text-sm font-semibold text-neutral-100">
                 {tCommon("free")}
               </span>
-            ) : game.price ? (
+            ) : price ? (
               <span className="flex items-baseline gap-2">
-                {game.price.discountPct > 0 && (
+                {price.discountPct > 0 && (
                   <>
                     <span className="text-xs text-neutral-500 line-through">
-                      {formatPrice(
-                        { ...game.price, final: game.price.initial },
-                        locale,
-                      )}
+                      {formatPrice({ ...price, final: price.initial }, locale)}
                     </span>
                     <span className="rounded bg-[#fbbf24]/15 px-1.5 py-0.5 text-xs font-bold text-[#fbbf24]">
-                      -{game.price.discountPct}%
+                      -{price.discountPct}%
                     </span>
                   </>
                 )}
                 <span className="text-sm font-semibold text-neutral-100">
-                  {formatPrice(game.price, locale)}
+                  {formatPrice(price, locale)}
                 </span>
               </span>
             ) : (

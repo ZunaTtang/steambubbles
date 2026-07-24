@@ -475,6 +475,7 @@ export default function BubbleApp({
           selectedGame !== null && favorites.has(selectedGame.appid)
         }
         onToggleFavorite={toggleFavorite}
+        currency={currency}
       />
     </div>
   );

@@ -1,19 +1,14 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { Client } from "@upstash/qstash";
-import { and, asc, eq, gt, inArray } from "drizzle-orm";
+import { and, asc, gt, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
-import { appGenres, apps, genres, prices, reviews } from "@/db/schema";
+import { apps } from "@/db/schema";
 import { sendAlert } from "@/lib/alerts";
+import { collectAppDetails } from "@/lib/collect";
 import { isMockMode } from "@/lib/data";
 import { CircuitOpenError, sleep } from "@/lib/fetch-util";
 import { recordJobRun } from "@/lib/jobs";
-import {
-  getAppDetails,
-  getAppReviewSummary,
-  type AppPriceOverview,
-  type StoreCC,
-} from "@/lib/steam";
 
 // 가격+메타+평점 수집 (CLAUDE.md 3-3/3-4).
 // store 도메인은 비공식 상한(~200콜/5분/IP) — 모든 store 호출 사이 1.6초 간격 필수.
@@ -28,39 +23,6 @@ const STORE_CALL_GAP_MS = 1_600; // ≈187콜/5분 — 상한 바로 아래
 const DEFAULT_BATCH_SIZE = 1;
 // 티어별 갱신 주기(CLAUDE.md 3-3: Tier 1 일 1회 / Tier 2 격일)는 스케줄별 tiers 필터로 구현
 const DEFAULT_TIERS = [1, 2, 3];
-
-type Db = ReturnType<typeof getDb>;
-
-async function upsertPrice(
-  db: Db,
-  appid: number,
-  cc: StoreCC,
-  po: AppPriceOverview,
-): Promise<void> {
-  const now = new Date();
-  await db
-    .insert(prices)
-    .values({
-      appid,
-      cc,
-      currency: po.currency,
-      price: po.final,
-      priceInitial: po.initial,
-      discountPercent: po.discountPercent,
-      updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: [prices.appid, prices.cc],
-      set: {
-        currency: po.currency,
-        price: po.final,
-        priceInitial: po.initial,
-        discountPercent: po.discountPercent,
-        // $onUpdate는 upsert set 절에 미적용 — stale 판정이 이 컬럼에 의존 (schema.ts)
-        updatedAt: now,
-      },
-    });
-}
 
 export async function POST(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
@@ -130,72 +92,9 @@ export async function POST(req: NextRequest) {
       // store 콜 간 1.6초 간격 — 체인 경계(cursor>0)에서도 첫 앱 앞에 유지 (QStash 지연은 보장 없음)
       if (i > 0 || cursor > 0) await sleep(STORE_CALL_GAP_MS);
       try {
-        const kr = await getAppDetails(appid, "kr");
-        if (kr) {
-          // cc=kr → KRW 가격 + 한국어 게임명 (호출 1번이 통화+언어 동시 해결)
-          await db
-            .update(apps)
-            .set({
-              nameKo: kr.name,
-              headerImage: kr.headerImage,
-              isFree: kr.isFree,
-              descKo: kr.description,
-            })
-            .where(eq(apps.appid, appid));
-          if (kr.priceOverview) await upsertPrice(db, appid, "kr", kr.priceOverview);
-          if (kr.genreIds.length > 0) {
-            await db
-              .insert(genres)
-              .values(kr.genreIds.map((id) => ({ id })))
-              .onConflictDoNothing();
-            await db
-              .insert(appGenres)
-              .values(kr.genreIds.map((genreId) => ({ appid, genreId })))
-              .onConflictDoNothing();
-          }
-        }
-
-        await sleep(STORE_CALL_GAP_MS);
-        const us = await getAppDetails(appid, "us");
-        if (us) {
-          // 출시일은 로케일 무관 — 영어 호출값을 정본으로 저장 (표시 라벨만 i18n)
-          await db
-            .update(apps)
-            .set({
-              nameEn: us.name,
-              descEn: us.description,
-              releaseDate: us.releaseDate,
-            })
-            .where(eq(apps.appid, appid));
-          if (us.priceOverview) await upsertPrice(db, appid, "us", us.priceOverview);
-        }
-
-        await sleep(STORE_CALL_GAP_MS);
-        const review = await getAppReviewSummary(appid);
-        if (review) {
-          const now = new Date();
-          await db
-            .insert(reviews)
-            .values({
-              appid,
-              reviewScore: review.reviewScore,
-              totalPositive: review.totalPositive,
-              totalNegative: review.totalNegative,
-              totalReviews: review.totalReviews,
-              updatedAt: now,
-            })
-            .onConflictDoUpdate({
-              target: reviews.appid,
-              set: {
-                reviewScore: review.reviewScore,
-                totalPositive: review.totalPositive,
-                totalNegative: review.totalNegative,
-                totalReviews: review.totalReviews,
-                updatedAt: now,
-              },
-            });
-        }
-
+        // 앱별 수집(kr/us appdetails + 가격 + 장르 + 평점)은 collect.ts 공용 로직 —
+        // store 콜 사이 1.6초 스로틀 (온디맨드 /api/refresh와 동일 함수 공유)
+        await collectAppDetails(db, appid, STORE_CALL_GAP_MS);
         processed += 1;
       } catch (err) {
         if (err instanceof CircuitOpenError) {

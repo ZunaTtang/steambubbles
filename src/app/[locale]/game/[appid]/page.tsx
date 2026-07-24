@@ -26,6 +26,7 @@ import {
 } from "@/lib/format";
 import { buildAlternates, getSiteUrl } from "@/lib/site";
 import DetailBackBar from "@/components/app/DetailBackBar";
+import RefreshOnView from "@/components/app/RefreshOnView";
 
 // 게임 상세 (CLAUDE.md 5-3) — 자연문 콘텐츠 + 추이 + SEO 메타/구조화 데이터.
 // 쿠키 통화 대신 로케일 기본 통화로 렌더 → 정적 프리렌더/ISR 가능 (SEO 유리).
@@ -263,6 +264,8 @@ export default async function GameDetailPage({ params }: Props) {
     <>
       {/* 모바일 복귀 UX: 스크롤해도 닿는 고정 뒤로가기 바 (스마트 백) */}
       <DetailBackBar />
+      {/* 조회 시 이 게임 가격·평점·소개를 온디맨드 갱신 (다음 방문에 신선) */}
+      <RefreshOnView appid={appid} />
       <main className="mx-auto max-w-2xl px-4 pb-8 pt-6">
       <script
         type="application/ld+json"
