@@ -1,4 +1,5 @@
 import type { Locale } from "@/i18n/locales";
+import Logo from "@/components/Logo";
 
 // 공유용 브랜드 카드 (1200×675) — snapdom 캡처 대상.
 // 색상은 전부 명시 hex(Tailwind v4 oklch가 캡처에서 어긋나는 것 방지),
@@ -30,16 +31,6 @@ interface ShareCardProps {
   top: ShareTopEntry[];
   locale: Locale;
   onBubbleLoad?: () => void;
-}
-
-function LogoGlyph({ size }: { size: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true">
-      <circle cx="18" cy="21" r="13" fill={GREEN} opacity="0.92" />
-      <circle cx="33" cy="17" r="9" fill="#2dd4bf" opacity="0.9" />
-      <circle cx="29" cy="33" r="7" fill="#38bdf8" opacity="0.85" />
-    </svg>
-  );
 }
 
 export default function ShareCard({
@@ -76,7 +67,7 @@ export default function ShareCard({
       {/* 헤더: 브랜드 / 범위·메타 */}
       <header className="flex items-center justify-between px-10 pt-7 pb-5">
         <div className="flex items-center gap-3.5">
-          <LogoGlyph size={46} />
+          <Logo size={46} />
           <div>
             <div
               style={{ fontSize: 23, fontWeight: 800, letterSpacing: "-0.01em" }}
@@ -139,7 +130,7 @@ export default function ShareCard({
             padding: "6px 12px 6px 10px",
           }}
         >
-          <LogoGlyph size={18} />
+          <Logo size={18} />
           <span style={{ fontSize: 14, fontWeight: 600, color: "#e6e9ee" }}>
             {watermark}
           </span>

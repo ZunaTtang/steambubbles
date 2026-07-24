@@ -15,6 +15,7 @@ import type {
   SizeBy,
 } from "@/lib/types";
 import { PERIODS } from "@/lib/types";
+import Logo from "@/components/Logo";
 import RangeControl from "./RangeControl";
 
 const PERIOD_LABEL_KEY: Record<Period, string> = {
@@ -98,9 +99,13 @@ export default function TopBar({
     <header className="z-30 border-b border-neutral-800 bg-[#0a0a0f]">
       {/* 1행: 타이틀 / 기간 탭 / 검색 / 필터 토글(모바일) / 설정 */}
       <div className="flex items-center gap-2 px-3 py-2">
-        <h1 className="hidden whitespace-nowrap text-sm font-bold tracking-tight text-neutral-200 sm:block">
-          {tSite("title")}
-        </h1>
+        {/* 브랜드 — 로고는 항상 노출(모바일에서 타이틀 숨김 대비), 타이틀은 sm+ */}
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Logo size={22} />
+          <h1 className="hidden whitespace-nowrap text-sm font-bold tracking-tight text-neutral-200 sm:block">
+            {tSite("title")}
+          </h1>
+        </div>
 
         <div
           role="tablist"
