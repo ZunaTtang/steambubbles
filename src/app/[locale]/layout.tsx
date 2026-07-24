@@ -34,6 +34,7 @@ export async function generateMetadata({
   const t = await getTranslations({ locale, namespace: "site" });
   return {
     metadataBase: new URL(getSiteUrl()),
+    applicationName: "steambubbles",
     title: { default: t("title"), template: `%s | ${t("title")}` },
     description: t("description"),
   };

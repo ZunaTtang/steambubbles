@@ -33,7 +33,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title: t("site.title"),
       description: t("site.description"),
       url: alternates.canonical,
-      siteName: t("site.title"),
+      // 사이트명 = 브랜드(도메인·로고 워드마크와 일치) — Google이 "Vercel"로 추론하지 않게.
+      // 페이지 제목(t("site.title"))은 별도로 로케일 설명형 유지
+      siteName: "steambubbles",
       locale,
       type: "website",
       images: [{ url: ogUrl, width: 1200, height: 630 }],
@@ -60,16 +62,36 @@ export default async function HomePage({ params }: Props) {
       ? cookieCurrency
       : DEFAULT_CURRENCY[locale];
 
+  const t = await getTranslations({ locale });
   const [snapshot, genres] = await Promise.all([
     getBubbleSnapshot({ period: "24h", currency, locale }),
     getGenreOptions(locale),
   ]);
 
+  // WebSite 구조화 데이터 — Google 검색의 "사이트 이름"을 브랜드로 고정(도메인 추론 "Vercel" 방지).
+  // name=브랜드, alternateName=로케일 설명형(한국어 검색 대응)
+  const siteUrl = getSiteUrl();
+  const websiteLd = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "steambubbles",
+    alternateName: t("site.title"),
+    url: siteUrl,
+    inLanguage: locale,
+    description: t("site.description"),
+  };
+
   return (
-    <BubbleApp
-      initialSnapshot={snapshot}
-      genres={genres}
-      initialCurrency={currency}
-    />
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteLd) }}
+      />
+      <BubbleApp
+        initialSnapshot={snapshot}
+        genres={genres}
+        initialCurrency={currency}
+      />
+    </>
   );
 }
