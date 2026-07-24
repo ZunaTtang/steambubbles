@@ -7,8 +7,8 @@ import {
   type Locale,
 } from "@/i18n/locales";
 import { getBubbleSnapshot } from "@/lib/data";
-import { formatChangePct, formatPlayersFull } from "@/lib/format";
-import { topMovers } from "@/lib/movers";
+import { formatPlayerDelta, formatPlayersFull } from "@/lib/format";
+import { moverDelta, topMovers } from "@/lib/movers";
 import type { Period } from "@/lib/types";
 
 // "오늘의 급상승" 공유 이미지 (CLAUDE.md 5-1 확장) — 급상승 TOP 7 리더보드 1200×630.
@@ -45,7 +45,7 @@ export async function GET(
   const locale = toLocale(raw);
   const period = toPeriod(new URL(req.url).searchParams.get("period"));
 
-  let top: { name: string; players: number; changePct: number }[] = [];
+  let top: { name: string; players: number; delta: number }[] = [];
   try {
     const snap = await getBubbleSnapshot({
       period,
@@ -55,7 +55,7 @@ export async function GET(
     top = topMovers(snap.games, "up", 7).map((g) => ({
       name: g.nameEn || g.name || `#${g.appid}`,
       players: g.players,
-      changePct: g.changePct ?? 0,
+      delta: moverDelta(g),
     }));
   } catch {
     top = []; // DB 일시 오류 — 브랜드 카드만 (우아한 강등)
@@ -100,7 +100,7 @@ export async function GET(
               📈 TOP GAINERS
             </div>
             <div style={{ fontSize: 18, color: MUTED, marginTop: 2 }}>
-              {`Rising on Steam · ${period}`}
+              {`By player gain · ${period}`}
             </div>
           </div>
         </div>
@@ -142,18 +142,18 @@ export async function GET(
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    minWidth: 118,
+                    minWidth: 168,
                     height: 40,
                     borderRadius: 10,
                     background: "rgba(22,199,132,0.14)",
                     color: GREEN,
-                    fontSize: 24,
+                    fontSize: 23,
                     fontWeight: 800,
                     marginRight: 22,
-                    padding: "0 12px",
+                    padding: "0 14px",
                   }}
                 >
-                  {formatChangePct(g.changePct)}
+                  {formatPlayerDelta(g.delta, "en")}
                 </div>
                 <div
                   style={{

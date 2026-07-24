@@ -28,6 +28,13 @@ export function formatChangePct(pct: number): string {
   return `${sign}${pct.toFixed(1)}%`;
 }
 
+// 동접 증감 인원 — 부호 + 로케일 자릿수 구분 (예: +45,200 / -1,300)
+export function formatPlayerDelta(n: number, locale: Locale): string {
+  const r = Math.round(n);
+  const sign = r > 0 ? "+" : r < 0 ? "-" : "";
+  return `${sign}${new Intl.NumberFormat(locale).format(Math.abs(r))}`;
+}
+
 // 점유율 — 큰 값은 1자리, 작은 값(하위 랭킹)은 3자리로 의미 있는 정밀도 유지 (예: 12.8% / 0.013%)
 export function formatSharePct(pct: number): string {
   return `${pct >= 1 ? pct.toFixed(1) : pct.toFixed(3)}%`;

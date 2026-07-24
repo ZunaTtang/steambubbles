@@ -41,6 +41,7 @@
   },
   "movers": {
     "heading": "Today's movers",
+    "basis": "By net player change over {period} (not percent)",
     "gainers": "Top gainers",
     "losers": "Top drops",
     "empty": "Collecting change data — this fills in as history accumulates.",

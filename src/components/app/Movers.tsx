@@ -4,8 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/locales";
 import type { GameBubbleData, Period } from "@/lib/types";
-import { formatChangePct, formatPlayersFull } from "@/lib/format";
-import { reasonTag, topMovers, type ReasonTag } from "@/lib/movers";
+import {
+  formatChangePct,
+  formatPlayerDelta,
+  formatPlayersFull,
+} from "@/lib/format";
+import { moverDelta, reasonTag, topMovers, type ReasonTag } from "@/lib/movers";
 import {
   canShareFiles,
   downloadBlob,
@@ -27,7 +31,11 @@ interface MoversProps {
 
 export default function Movers({ games, period, onSelect }: MoversProps) {
   const t = useTranslations("movers");
+  const tc = useTranslations("controls");
   const locale = useLocale() as Locale;
+  const periodLabel = tc(
+    period === "24h" ? "period24h" : period === "7d" ? "period7d" : "period30d",
+  );
   // 시간 의존 태그(new)는 마운트 후에만 (하이드레이션 불일치 방지)
   const [nowMs, setNowMs] = useState(0);
   useEffect(() => setNowMs(Date.now()), []);
@@ -69,8 +77,13 @@ export default function Movers({ games, period, onSelect }: MoversProps) {
 
   return (
     <section className="px-3 py-6">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="text-base font-bold text-neutral-200">{t("heading")}</h2>
+      <div className="mb-3 flex items-start justify-between gap-2">
+        <div>
+          <h2 className="text-base font-bold text-neutral-200">{t("heading")}</h2>
+          <p className="mt-0.5 text-xs text-neutral-500">
+            {t("basis", { period: periodLabel })}
+          </p>
+        </div>
         {gainers.length > 0 && (
           <button
             onClick={shareGainers}
@@ -178,16 +191,17 @@ function MoverRow({
       className="flex w-full items-center gap-2.5 border-b border-neutral-800/60 px-3 py-2 text-left last:border-b-0 hover:bg-neutral-900/60"
     >
       <span
-        className="w-16 shrink-0 text-right text-sm font-bold tabular-nums"
+        className="w-[88px] shrink-0 text-right text-[13px] font-bold tabular-nums whitespace-nowrap"
         style={{ color: up ? GREEN : RED }}
       >
-        {g.changePct === null ? "—" : formatChangePct(g.changePct)}
+        {formatPlayerDelta(moverDelta(g), locale)}
       </span>
       <MoverArt game={g} />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm text-neutral-200">{g.name}</span>
         <span className="block text-xs text-neutral-500">
           {formatPlayersFull(g.players, locale)} · #{g.rank}
+          {g.changePct !== null && ` · ${formatChangePct(g.changePct)}`}
         </span>
       </span>
       {tag && <TagChip tag={tag} />}

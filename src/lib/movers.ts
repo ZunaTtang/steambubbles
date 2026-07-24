@@ -9,31 +9,38 @@ export const MOVERS_MIN_PLAYERS = 500; // 소규모 게임의 극단 % 노이즈
 
 export type MoverDir = "up" | "down";
 
-// 급상승/급락 상위. 콜드스타트 폴백(changeSource!=="history")은 제외 —
-// 폴백 변화율은 players/peak24h라 항상 ≤0이라 급락 목록을 오염시킨다.
-// 노이즈 차단: "이동 전 기준치(base)"가 substantial한 게임만 — base는 변화율에서 유도
-// (base = players / (1 + 변화율/100)). 이렇게 하면 "하루 전 7명 → 지금 812명(+11500%)"
-// 같은 극소규모 폭발이 대형 게임의 의미 있는 급상승/급락을 밀어내지 못한다.
-// 범위 필터와 독립적인 전역 컷("오늘 가장 급상승").
+// 이동 전 추정 동접(base = players / (1 + 변화율/100))과 증감 인원(Δ = 현재 − base).
+// %가 아니라 실제 증감 "인원"을 지표로 쓰기 위해 변화율에서 정확히 유도한다.
+export function moverBase(g: GameBubbleData): number {
+  if (g.changePct === null) return g.players;
+  return g.players / (1 + g.changePct / 100);
+}
+export function moverDelta(g: GameBubbleData): number {
+  return g.players - moverBase(g);
+}
+
+// 급상승/급락 상위 — **증감 인원(Δ) 기준** 정렬(퍼센트 아님). 대형 게임의 실제 유입이 위로
+// 오고, "하루 전 7명 → 812명(+11500%)" 같은 극소규모 %폭발은 Δ가 작아 자연히 밀린다.
+// 콜드스타트 폴백(changeSource!=="history")은 제외(폴백 %는 항상 ≤0라 급락 오염).
+// 게이트: 이동 전·후 중 큰 쪽이 substantial(≥500) — 소규모 게임 노이즈 차단.
+// 범위 필터와 독립적인 전역 컷.
 export function topMovers(
   games: GameBubbleData[],
   dir: MoverDir,
   limit = 8,
-  minBase = MOVERS_MIN_PLAYERS,
+  minSize = MOVERS_MIN_PLAYERS,
 ): GameBubbleData[] {
   const pool = games.filter((g) => {
     if (g.changePct === null || g.changeSource !== "history") return false;
     if (dir === "up" ? g.changePct <= 0 : g.changePct >= 0) return false;
-    if (g.players < 50) return false; // 사실상 소멸한 게임 제외
     const denom = 1 + g.changePct / 100;
     if (denom <= 0.02) return false; // 변화율 ~-100%(극단) 방어
-    const impliedBase = g.players / denom; // 이동 전 추정 동접
-    return impliedBase >= minBase;
+    const base = g.players / denom;
+    return Math.max(g.players, base) >= minSize;
   });
+  // up: 증가 인원 큰 순 / down: 감소 인원(음수) 큰 순
   pool.sort((a, b) =>
-    dir === "up"
-      ? (b.changePct ?? 0) - (a.changePct ?? 0)
-      : (a.changePct ?? 0) - (b.changePct ?? 0),
+    dir === "up" ? moverDelta(b) - moverDelta(a) : moverDelta(a) - moverDelta(b),
   );
   return pool.slice(0, limit);
 }
