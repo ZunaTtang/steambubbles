@@ -21,6 +21,7 @@ import GameModal from "./GameModal";
 import RankingTable from "./RankingTable";
 import BubbleDraw from "./BubbleDraw";
 import ShareModal from "./ShareModal";
+import Movers from "./Movers";
 
 const PERIOD_LABEL_KEY: Record<Period, string> = {
   "24h": "period24h",
@@ -433,6 +434,13 @@ export default function BubbleApp({
           </a>
         </div>
       </div>
+
+      {/* 오늘의 무버스 — 급상승/급락 TOP + "왜" 태그 (전역, 범위 필터와 독립) */}
+      <Movers
+        games={snapshot.games}
+        period={period}
+        onSelect={setSelectedGame}
+      />
 
       {/* 페이지 스크롤 영역: 랭킹 테이블 */}
       <RankingTable

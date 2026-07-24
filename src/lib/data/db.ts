@@ -66,6 +66,7 @@ export async function dbGetBubbleSnapshot(opts: {
       nameKo: apps.nameKo,
       headerImage: apps.headerImage,
       isFree: apps.isFree,
+      firstSeenAt: apps.firstSeenAt,
     })
     .from(playerSnapshots)
     .innerJoin(apps, eq(apps.appid, playerSnapshots.appid))
@@ -235,6 +236,7 @@ export async function dbGetBubbleSnapshot(opts: {
       reviewScore: review?.reviewScore ?? 0,
       totalReviews: review?.totalReviews ?? 0,
       genreIds: genresByApp.get(row.appid) ?? [],
+      firstSeenAt: new Date(row.firstSeenAt).toISOString(),
     };
   });
 

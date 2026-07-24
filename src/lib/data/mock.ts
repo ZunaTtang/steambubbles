@@ -69,6 +69,10 @@ export async function mockGetBubbleSnapshot(opts: {
       reviewScore: g.reviewScore,
       totalReviews: g.totalReviews,
       genreIds: g.genreIds,
+      // 결정론적 목업: 랭크 17배수는 최근 진입(🆕), 나머지는 오래됨
+      firstSeenAt: new Date(
+        Date.now() - (g.rank % 17 === 0 ? 3 : 300) * 86_400_000,
+      ).toISOString(),
     };
   });
   return {

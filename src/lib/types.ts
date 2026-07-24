@@ -96,6 +96,8 @@ export interface GameBubbleData {
   reviewScore: number; // 0~9 (0 = 평가 없음) — 라벨은 i18n 사전 매핑
   totalReviews: number;
   genreIds: number[];
+  // 유니버스 첫 편입 시각(ISO) — "신규 진입" 태그 판정용
+  firstSeenAt: string;
 }
 
 export interface BubbleSnapshot {

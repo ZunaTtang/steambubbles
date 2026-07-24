@@ -39,6 +39,18 @@
     "resetView": "Reset view",
     "noResults": "No games match the current filters"
   },
+  "movers": {
+    "heading": "Today's movers",
+    "gainers": "Top gainers",
+    "losers": "Top drops",
+    "empty": "Collecting change data — this fills in as history accumulates.",
+    "share": "Share",
+    "shareTitle": "Today's top gainers",
+    "shareText": "Steam's fastest-rising games right now — steambubbles",
+    "tagSale": "Sale -{pct}%",
+    "tagNew": "New",
+    "tagSurge": "Surge"
+  },
   "draw": {
     "fab": "Draw",
     "title": "Bubble Draw",

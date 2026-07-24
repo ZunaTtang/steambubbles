@@ -39,6 +39,18 @@
     "resetView": "화면 초기화",
     "noResults": "조건에 맞는 게임이 없습니다"
   },
+  "movers": {
+    "heading": "오늘의 무버스",
+    "gainers": "급상승",
+    "losers": "급락",
+    "empty": "변화율 데이터를 모으는 중입니다. 히스토리가 쌓이면 채워집니다.",
+    "share": "떡상 공유",
+    "shareTitle": "오늘의 급상승 게임",
+    "shareText": "스팀에서 지금 급상승 중인 게임 TOP — steambubbles",
+    "tagSale": "세일 -{pct}%",
+    "tagNew": "신규",
+    "tagSurge": "급등"
+  },
   "draw": {
     "fab": "뽑기",
     "title": "버블 뽑기",
