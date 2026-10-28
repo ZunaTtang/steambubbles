@@ -8,7 +8,7 @@ import { sleep } from "@/lib/fetch-util";
 import { recordJobRun } from "@/lib/jobs";
 import { getAppDetails, getGamesByConcurrentPlayers } from "@/lib/steam";
 
-// Tier 1 동접 수집 (CLAUDE.md 3-1) — QStash가 10분 주기로 호출.
+// Tier 1 동접 수집 (CLAUDE.md 3-1) — QStash가 30분 주기로 호출 (2026-10 Neon 컴퓨트 절감).
 // GetGamesByConcurrentPlayers 1콜로 top 100의 현재 동접+랭킹을 받아 스냅샷 적재.
 // tier=1은 항상 "현재 top 100"과 일치하도록: 이번 목록은 tier 1로 올리고,
 // 이번 목록에 없는 기존 tier 1은 tier 2로 강등한다. Tier 2 폴링/유니버스는 별도 크론.

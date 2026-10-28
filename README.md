@@ -7,7 +7,7 @@
 
 ## 현재 상태
 
-- **Launch 슬라이스(Phase 1~5) 프로덕션 라이브 완료.** 자동 동접 수집(top ~3,000 — Tier 1 10분 · Tier 2 30분 · Tier 3 3시간) + 버블맵·랭킹 테이블·게임 상세(소개·데이터 대시보드) + **오늘의 무버스·버블 뽑기·떡상 공유**(재방문 콘텐츠) + 온디맨드 갱신 + SEO(sitemap·hreflang·JSON-LD·동적 OG·브랜드 검색 최적화) + 공유/스크린샷 + Analytics가 무인으로 가동 중.
+- **Launch 슬라이스(Phase 1~5) 프로덕션 라이브 완료.** 자동 동접 수집(top ~3,000 — Tier 1 30분 · Tier 2 30분 · Tier 3 3시간) + 버블맵·랭킹 테이블·게임 상세(소개·데이터 대시보드) + **오늘의 무버스·버블 뽑기·떡상 공유**(재방문 콘텐츠) + 온디맨드 갱신 + SEO(sitemap·hreflang·JSON-LD·동적 OG·브랜드 검색 최적화) + 공유/스크린샷 + Analytics가 무인으로 가동 중.
 - **로케일**: `ko`(기본) + `en` 오픈. `ja`/`zh`·유럽어는 동결(트리거 대기).
 - **남은 운영 작업**: Discord 알림 연결(`ALERT_WEBHOOK_URL` 환경변수), Google Search Console 등록 + 색인 요청(브랜드·파비콘 반영 확인 겸 ko 노출 추이 계기판), 애드센스 신청(유입 축적 후). *(Vercel Web Analytics는 활성 확인됨.)*
 
@@ -93,7 +93,7 @@ src/
   app/[locale]/         # 로케일 라우팅 (ko·en) — 버블맵 홈 · game/[appid] 상세 · about · privacy
   app/sitemap.ts        # 동적 sitemap (홈+정적+게임, 로케일별)   app/robots.ts
   app/api/bubbles/      # 버블맵 스냅샷 API (기간·통화별)   app/api/trend/  게임별 추이 API
-  app/api/cron/         # players-tier1(10분) · players-tier2(30분) · players-tier3(3시간) · details · universe · maintenance · healthcheck
+  app/api/cron/         # players-tier1(30분) · players-tier2(30분) · players-tier3(3시간) · details · universe · maintenance · healthcheck
   components/bubble-map/ # PixiJS + d3-force 버블맵 렌더러 (탭=선택 / 드래그=버블 이동 / hover=툴팁)
   components/app/       # 상단 바(언어·통화·필터), 모달, 랭킹 테이블, 앱 셸
   lib/                  # types(계약), fetch-util(백오프+서킷브레이커), circuit(DB 지속화), steam, format, site
@@ -117,7 +117,7 @@ scripts/                # 목업 fixture 생성기
 - [x] Next.js 15 + next-intl + Neon/Drizzle 스키마·마이그레이션
 - [x] fetch 유틸(지수 백오프 + DB 지속화 서킷브레이커 + 지터) + `job_runs`
 - [x] `players-tier1` 수집 + 데드맨스위치 헬스체크 핸들러
-- [x] Neon + Vercel + QStash 연결 — **10분 자동 적재 검증 완료**
+- [x] Neon + Vercel + QStash 연결 — **자동 적재 검증 완료** (주기 30분 — 2026-10 Neon 무료 compute 절감)
 - [ ] Discord 웹훅(`ALERT_WEBHOOK_URL`) → 중단 알림 활성화
 
 ### Phase 2 — 버블맵 + 랭킹 테이블 ([#2](https://github.com/ZunaTtang/steambubbles/issues/2)) ✅ LIVE
