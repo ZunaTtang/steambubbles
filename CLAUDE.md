@@ -66,7 +66,7 @@
 GET https://api.steampowered.com/ISteamChartsService/GetGamesByConcurrentPlayers/v1/
 ```
 - **실테스트 기록 (2026-07)**: `GetMostPlayedGames`는 `{ rank, appid, last_week_rank, peak_in_game }`만 반환하고 **현재 동접(concurrent_in_game)은 없다**(주간 피크만). 반면 **`GetGamesByConcurrentPlayers`는 `{ rank, appid, concurrent_in_game, peak_in_game }`를 반환** — 호출 1번으로 top 100의 현재 동접+피크를 현재 동접 기준 랭킹으로 모두 얻는다. 따라서 Tier 1은 이 엔드포인트 1콜로 처리(기존 GetMostPlayedGames + 앱별 100콜 조합을 대체).
-- **갱신: 30분마다** (일 48콜). 메인 버블맵의 주 신선도 소스. **2026-10 사용자 결정: 10분 → 30분 하향** — 10분 주기는 Steam API 예산엔 여유였으나, 매 호출이 Neon 무료 compute를 깨워 scale-to-zero 5분 꼬리까지 과금되면서 컴퓨트가 사실상 상시 가동(월 ~360h+, 무료 한도 ~190h 초과) → 월 중 조기 소진("데이터 안 나옴"). 깨움 빈도를 절반 이하로 낮춰 무료 한도 유지. 서빙 recency 창(4h, `src/lib/data/db.ts`) 안에 넉넉히 들어옴. (참고: SteamDB는 상위 1,000개 5분·그 외 10분 주기 — 빈도 자체는 안전 영역이나 이 프로젝트의 병목은 Steam API가 아니라 Neon 컴퓨트시간이었음. 실시간성은 해자가 아님.)
+- **갱신: 30분마다** (일 48콜). 메인 버블맵의 주 신선도 소스. **2026-10 사용자 결정: 10분 → 30분 하향** — 10분 주기는 Steam API 예산엔 여유였으나, 매 호출이 Neon 무료 compute를 깨워 scale-to-zero 5분 꼬리까지 과금되면서 컴퓨트가 사실상 상시 가동(월 ~360h+, 무료 한도 ~190h 초과) → 월 중 조기 소진("데이터 안 나옴"). 깨움 빈도를 절반 이하로 낮춰 무료 한도 유지. 서빙 recency 창(4h, `src/lib/data/db.ts`) 안에 넉넉히 들어옴. (참고: SteamDB는 상위 1,000개 5분·그 외 10분 주기 — 빈도 자체는 안전 영역이나 이 프로젝트의 병목은 Steam API가 아니라 Neon 컴퓨트시간이었음. 실시간성은 해자가 아님.) **2026-11 깨움 창 정렬 (사용자 위임 결정)**: 모든 QStash 스케줄을 tier1과 같은 분에 몰아 한 번 깨운 5분 꼬리를 공유 — tier1·tier2 `13,43 * * * *`, healthcheck·details `13 15 * * *`, universe·maintenance `43 15 * * *` (UTC, `scripts/align-schedules.mjs`). 새 크론을 추가할 때도 반드시 :13/:43 창에 넣는다 — 다른 분에 두면 그만큼 깨움이 늘어난다.
 
 ### 3-2. 심층 랭킹 (101위 이하)
 - **실테스트 기록 (2026-07)**: `GetGamesByConcurrentPlayers`는 **정확히 100개만 반환**(rank 1~100). 100개 초과 반환은 없으므로 폴링 예산 절약 효과 없음 → 아래 **보장된 폴백(앱별 폴링)이 Tier 2의 유일한 경로**다.
@@ -124,7 +124,7 @@ player_daily(appid, date, peak, avg)  -- 롤업
 ```
 
 ### 4-3. 서빙
-- 페이지는 DB를 조회하는 서버 컴포넌트 + ISR(`revalidate: 1800~3600`).
+- 페이지는 DB를 조회하는 서버 컴포넌트 + ISR(`revalidate: 1800~3600`). 홈은 통화 쿠키 때문에 force-dynamic이므로 DB 읽기는 데이터 레이어 `unstable_cache`(`src/lib/data/index.ts`)로 감싼다 — 스냅샷·추이·상세 30분, 장르·추적 목록 1시간 (2026-11: 5분 → 30분, 방문자 트래픽의 Neon 깨움 억제). 캐시를 수집 주기보다 짧게 두지 않는다.
 - 랭킹/장르 목록 쿼리는 인덱스 설계 필수: `player_snapshots(ts)`, `apps(tier, last_seen_rank)`.
 
 ### 4-4. i18n — 구조는 지금, 오픈은 신호 후

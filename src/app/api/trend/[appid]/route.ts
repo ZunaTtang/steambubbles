@@ -2,7 +2,7 @@ import { getTrend } from "@/lib/data";
 
 // 게임별 동접 추이 API (모달 스파크라인용) — CDN 5분 캐시
 const CACHE_HEADERS = {
-  "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+  "Cache-Control": "public, s-maxage=900, stale-while-revalidate=1800",
 };
 
 const DEFAULT_DAYS = 30;

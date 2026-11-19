@@ -37,8 +37,12 @@ const SCOPE_MAX_RANK: Record<SnapshotScope, number> = { top: 1000, deep: 3000 };
 
 // 페이지는 통화 쿠키 때문에 force-dynamic이지만, 데이터 조립까지 매 요청 실행하면
 // Neon이 트래픽마다 깨어난다 (CLAUDE.md 4-3 ISR·비용 원칙 위반). DB 경로만 데이터 레이어
-// 캐시로 감싸 (period,currency,locale)별 5분 캐시 — 홈·상세 페이지가 같은 엔트리를 공유한다.
-const REVALIDATE_S = 300;
+// 캐시로 감싸 (period,currency,locale)별 캐시 — 홈·상세 페이지가 같은 엔트리를 공유한다.
+// 2026-11 Neon 무료 컴퓨트 절감: 5분 → 30분. 동접은 30분마다 수집되므로(CLAUDE.md 3-1) 5분
+// 캐시는 신선도 이득 없이 방문자 트래픽마다 컴퓨트를 최대 6배 더 깨웠다(깨움 1회 = 5분 꼬리 과금).
+const REVALIDATE_S = 1800;
+// 장르 목록·추적 앱 목록은 일 1회 잡(universe/details)으로만 바뀐다.
+const SLOW_REVALIDATE_S = 3600;
 
 // 우아한 강등 (CLAUDE.md 3-3) — DB 읽기 실패 시 500으로 사이트를 깨뜨리지 않고 안전한 빈
 // 결과로 폴백한다. unstable_cache는 throw를 캐시하지 않으므로(캐시 히트 시엔 이전 stale 데이터를
@@ -103,7 +107,7 @@ export async function getGenreOptions(locale: Locale): Promise<GenreOption[]> {
         return dbGetGenreOptions(locale);
       },
       ["genre-options", locale],
-      { revalidate: REVALIDATE_S, tags: ["genres"] },
+      { revalidate: SLOW_REVALIDATE_S, tags: ["genres"] },
     ),
     [],
   );
@@ -147,7 +151,7 @@ export async function getGameDetail(
   );
 }
 
-// generateStaticParams·sitemap용 추적 앱 목록 (Tier maxTier 이하). 30분 캐시.
+// generateStaticParams·sitemap용 추적 앱 목록 (Tier maxTier 이하). 1시간 캐시.
 export async function getTrackedAppids(maxTier = 2): Promise<number[]> {
   if (isMockMode()) return mockGetTrackedAppids();
   return safeRead(
@@ -158,7 +162,7 @@ export async function getTrackedAppids(maxTier = 2): Promise<number[]> {
         return dbGetTrackedAppids(maxTier);
       },
       ["tracked-appids", String(maxTier)],
-      { revalidate: 1800, tags: ["apps"] },
+      { revalidate: SLOW_REVALIDATE_S, tags: ["apps"] },
     ),
     [],
   );

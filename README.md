@@ -55,7 +55,9 @@ cp .env.example .env
 | `QSTASH_TOKEN` | QStash 스케줄·체이닝 토큰 | https://console.upstash.com/qstash |
 | `QSTASH_URL` | QStash 지역 엔드포인트 (예: `https://qstash-us-east-1.upstash.io`) — SDK baseUrl에 필수 | 위 콘솔 |
 | `SITE_URL` | QStash 체이닝 콜백용 베이스 URL (배포 시) | — |
-| `ALERT_WEBHOOK_URL` | 데드맨스위치·서킷브레이커 알림용 Discord 웹훅 | 개인 Discord 서버 |
+| `ALERT_WEBHOOK_URL` | 데드맨스위치·서킷브레이커 알림용 Discord 웹훅 (미설정 시 런타임 로그로 폴백) | 개인 Discord 서버 |
+| `DETAILS_TIME_BUDGET_MS` | details 크론 홉당 처리 시간 예산 (선택, 기본 4000=Hobby 안전). Pro 전환 시 상향(예: 45000)하면 홉당 처리량↑·QStash 메시지↓ | — |
+| `DETAILS_MAX_APPS_PER_SWEEP` | details 한 스윕 처리 앱 상한 (선택, 기본 100). QStash 무료 일일 한도를 details가 혼자 소진해 tier1/tier2를 굶기는 것을 방지 | — |
 
 ### 4. DB 스키마 반영
 
@@ -85,6 +87,71 @@ http://localhost:3000 접속 시 브라우저 언어에 따라 `/ko` 또는 `/en
 | `npm run db:generate` / `db:migrate` | 마이그레이션 생성 / 적용 |
 | `npm run db:studio` | Drizzle Studio (DB 브라우저) |
 | `node scripts/generate-mock-games.mjs` | 목업 게임 fixture 재생성 (결정론적 시드) |
+
+## 운영 · 유지보수
+
+방치형 운영이 전제지만, 아래 의존 관계 중 하나라도 끊기면 **수집이 조용히 멈춘다.** 증상과 점검 순서를 정리한다.
+
+### 의존 관계
+
+```
+QStash 스케줄 (us-east-1, Authorization: Bearer CRON_SECRET)
+  └─▶ Vercel /api/cron/*  (Vercel 환경변수 CRON_SECRET과 일치해야 함, 아니면 401)
+        └─▶ Neon Postgres (DATABASE_URL) ── 쓰기가 끊기면 무료 플랜이 며칠 뒤 브랜치를 아카이브
+              └─▶ 서빙: 최근 4시간 스냅샷만 표시 → 수집이 멈추면 버블맵이 빈 화면
+```
+
+### 프로덕션 필수 환경변수 (Vercel → Settings → Environment Variables, Production)
+
+`DATABASE_URL` · `STEAM_API_KEY` · `CRON_SECRET` · `QSTASH_TOKEN` · `QSTASH_URL` · `SITE_URL` (+ 선택 `ALERT_WEBHOOK_URL`)
+
+- 환경변수를 바꾸면 **반드시 재배포**해야 반영된다 (Deployments → ⋯ → Redeploy).
+- `CRON_SECRET`은 QStash 스케줄 헤더에 저장된 값과 같아야 한다. 바꿨다면 `scripts/resign-schedules.mjs`로 스케줄도 재서명.
+- `QSTASH_TOKEN`은 **US Region** 콘솔 값 (EU 토큰 · 잘린 복사본은 `invalid token`). 콘솔의 복사 버튼으로 복사할 것.
+- 로컬 `.env`에도 같은 `CRON_SECRET`·`QSTASH_TOKEN`을 두면 아래 점검 스크립트를 로컬에서 바로 돌릴 수 있다.
+
+### 점검 · 복구 스크립트
+
+| 명령 | 용도 |
+|---|---|
+| `node --env-file=.env scripts/check-pipeline.mjs` | 읽기 전용 헬스 점검 — 잡별 마지막 성공, 데이터 신선도, QStash 스케줄·DLQ. DB를 쿼리하므로 아카이브된 Neon을 깨우는 효과도 있음 |
+| `node --env-file=.env scripts/resign-schedules.mjs [--apply]` | 스케줄 Authorization 헤더를 현재 `CRON_SECRET`으로 재서명 (기본 dry-run) |
+| `node --env-file=.env scripts/restore-schedules.mjs [--apply]` | 소실된 스케줄을 목표 목록대로 재생성 (기본 dry-run, 있는 건 건드리지 않음) |
+| `node --env-file=.env scripts/align-schedules.mjs [--apply]` | 스케줄 cron을 Neon 공유 깨움 창(:13/:43)으로 정렬 (기본 dry-run, 헤더·body 보존) |
+
+`QSTASH_URL`/`SITE_URL`이 로컬 `.env`에 없으면 명령 앞에 `QSTASH_URL=https://qstash-us-east-1.upstash.io SITE_URL=https://steambubbles.vercel.app`을 붙인다.
+
+### 증상별 점검 순서
+
+1. **버블맵이 비었다 / "조건에 맞는 게임이 없습니다"** → `check-pipeline.mjs`로 `players-tier1` 마지막 성공 시각 확인.
+2. **수집이 멈췄다** → Upstash 콘솔 → QStash(US) → Logs에서 크론 응답 코드 확인.
+   - `401 unauthorized` → Vercel 환경변수 누락 또는 `CRON_SECRET` 불일치. 환경변수 확인 → 재배포.
+   - 스케줄이 없음 → `restore-schedules.mjs`.
+   - `5xx` → Vercel Logs에서 함수 오류 확인.
+3. **Neon "Branch archived"** → 쿼리 한 번이면 자동 복귀 (`check-pipeline.mjs` 실행). 단 수집을 살리지 않으면 며칠 뒤 다시 아카이브된다.
+4. **"가격 정보 일시 미제공"** → 가격 갱신이 3일 넘게 없을 때의 의도된 강등. `details` 크론(일 1회)이 돌면 자동 해제.
+5. 복구 후 `players-tier1`을 수동으로 한 번 호출하면 즉시 데이터가 찬다:
+   `curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://steambubbles.vercel.app/api/cron/players-tier1`
+   (tier2를 호출하면 체이닝으로 tier3까지 이어서 돈다. API 응답은 CDN에서 최대 5분 캐시된다.)
+
+### Neon 무료 한도 관리
+
+Neon 무료 플랜의 병목은 스토리지가 아니라 **컴퓨트 시간**이다. scale-to-zero는 마지막 쿼리 5분 뒤에 재우지만 그 5분까지 과금되므로, **DB를 깨우는 횟수 = 비용**이다.
+
+| 레버 | 현재 설정 | 효과 |
+|---|---|---|
+| 크론 깨움 창 정렬 | 모든 스케줄을 `:13`/`:43`(UTC)에 몰아 둠 — tier1·tier2 `13,43 * * * *`, healthcheck·details `13 15 * * *`, universe·maintenance `43 15 * * *` | 시간당 깨움 ~4회 → 2회. tier3는 tier2가 같은 창에서 이어 실행 |
+| 방문자 읽기 캐시 | `src/lib/data/index.ts` `unstable_cache` 30분(장르·추적 목록 1시간), `/api/bubbles`·`/api/trend` CDN 15분 | 방문 트래픽이 DB를 깨우는 빈도를 수집 주기 이하로 제한 |
+| 컴퓨트 크기 | Neon 콘솔 → Branch → Compute → **최대 0.25 CU 고정 권장** | 무료 한도는 CU-시간 단위라 오토스케일 상한이 높으면 같은 시간도 몇 배로 소모 |
+
+예상치: 하루 깨움 48회 × 약 6분 ≈ 월 145시간 (0.25 CU 기준 약 36 CU-시간).
+
+**규칙**: 새 크론은 반드시 `:13`/`:43` 창에 넣고, 데이터 캐시를 수집 주기(30분)보다 짧게 두지 않는다. 사용량은 Neon 콘솔 → Billing/Usage에서 월 중순에 한 번 확인한다.
+
+### 장애 이력
+
+- **2026-10-26 ~ 11-19 수집 전면 중단 (24일)** — Vercel 프로젝트에 환경변수가 하나도 없는 상태로 배포돼(10/29 재생성 추정) 모든 크론이 401. 쓰기가 끊긴 Neon이 아카이브됨. 환경변수 6개 복구 + 재배포로 해결, QStash 스케줄은 손댈 필요 없었음.
+- **교훈 / 남은 위험**: 데드맨스위치(`healthcheck`)가 감시 대상과 같은 QStash로 트리거되고 `ALERT_WEBHOOK_URL`도 없어 24일간 아무 알림이 없었다. 웹훅이 없으면 이제 최소한 Vercel 런타임 로그에 `[steambubbles][ALERT]`로 남는다. 근본 대책(독립 트리거의 외부 업타임 모니터 + Discord 웹훅)은 미착수.
 
 ## 디렉토리 구조
 
