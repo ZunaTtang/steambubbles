@@ -66,7 +66,7 @@
 GET https://api.steampowered.com/ISteamChartsService/GetGamesByConcurrentPlayers/v1/
 ```
 - **실테스트 기록 (2026-07)**: `GetMostPlayedGames`는 `{ rank, appid, last_week_rank, peak_in_game }`만 반환하고 **현재 동접(concurrent_in_game)은 없다**(주간 피크만). 반면 **`GetGamesByConcurrentPlayers`는 `{ rank, appid, concurrent_in_game, peak_in_game }`를 반환** — 호출 1번으로 top 100의 현재 동접+피크를 현재 동접 기준 랭킹으로 모두 얻는다. 따라서 Tier 1은 이 엔드포인트 1콜로 처리(기존 GetMostPlayedGames + 앱별 100콜 조합을 대체).
-- **갱신: 10분마다** (일 144콜 — 사실상 무료). 메인 버블맵을 준실시간으로 만드는 핵심. 참고: SteamDB는 상위 1,000개를 5분, 나머지를 10분 주기로 갱신함 — 이 빈도대는 실증된 안전 영역.
+- **갱신: 30분마다** (일 48콜). 메인 버블맵의 주 신선도 소스. **2026-10 사용자 결정: 10분 → 30분 하향** — 10분 주기는 Steam API 예산엔 여유였으나, 매 호출이 Neon 무료 compute를 깨워 scale-to-zero 5분 꼬리까지 과금되면서 컴퓨트가 사실상 상시 가동(월 ~360h+, 무료 한도 ~190h 초과) → 월 중 조기 소진("데이터 안 나옴"). 깨움 빈도를 절반 이하로 낮춰 무료 한도 유지. 서빙 recency 창(4h, `src/lib/data/db.ts`) 안에 넉넉히 들어옴. (참고: SteamDB는 상위 1,000개 5분·그 외 10분 주기 — 빈도 자체는 안전 영역이나 이 프로젝트의 병목은 Steam API가 아니라 Neon 컴퓨트시간이었음. 실시간성은 해자가 아님.) **2026-11 깨움 창 정렬 (사용자 위임 결정)**: 모든 QStash 스케줄을 tier1과 같은 분에 몰아 한 번 깨운 5분 꼬리를 공유 — tier1·tier2 `13,43 * * * *`, healthcheck·details `13 15 * * *`, universe·maintenance `43 15 * * *` (UTC, `scripts/align-schedules.mjs`). 새 크론을 추가할 때도 반드시 :13/:43 창에 넣는다 — 다른 분에 두면 그만큼 깨움이 늘어난다.
 
 ### 3-2. 심층 랭킹 (101위 이하)
 - **실테스트 기록 (2026-07)**: `GetGamesByConcurrentPlayers`는 **정확히 100개만 반환**(rank 1~100). 100개 초과 반환은 없으므로 폴링 예산 절약 효과 없음 → 아래 **보장된 폴백(앱별 폴링)이 Tier 2의 유일한 경로**다.
@@ -76,7 +76,7 @@ GET https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?a
 ```
 - 폴링 유니버스(추적 대상 앱 목록) 구성: 공식 top 100 히스토리 누적 ∪ SteamSpy top 페이지(`steamspy.com/api.php?request=all&page=N`, 1req/sec 제한) ∪ 스팀 인기 판매 차트. DB의 `apps` 테이블에 유니버스를 유지하고 신규 진입 앱은 자동 편입.
 - 갱신 티어링 (일 10만 콜 예산 기반):
-  - Tier 1 (rank 1~100): 3-1 호출에 포함됨 (10분 해상도) — **Launch**
+  - Tier 1 (rank 1~100): 3-1 호출에 포함됨 (30분 해상도 — 2026-10 Neon 컴퓨트 절감으로 10분→30분) — **Launch**
   - Tier 2 (rank 101~1,000): **30분마다** (900앱 × 48회 = 43,200콜/일) — **Launch**
   - Tier 3 (rank 1,001~3,000): **3시간마다 (일 8회)** — **2026-07 사용자 결정으로 오픈** (버블맵 딥 랭크 표시용. 기존 "일 1~2회 후행" 스펙을 맵 신선도 요건에 맞춰 상향 — 스냅샷 recency 4h 창 안에 들어와야 맵에 뜬다). 2,000앱 × 8회 = 16,000콜/일. 유니버스 = SteamSpy top 3페이지(소유자 순 3,000) CCU 정렬, 상위 900=Tier 2 · 다음 2,000=Tier 3, 탈락분은 tier 4(휴면) 강등. **트리거는 전용 스케줄이 아니라 players-tier2 마지막 배치의 셀프 킥오프**(job_runs 신선도 검사, 3h 경과 시 발행) — QStash 스케줄 추가 없이 자율 구동, 전용 스케줄을 만들어도 중복 발화 없음
   - 합계 ~63,000콜/일, 예산의 2/3 이하. 429 시 Tier 3부터 주기를 늘리는 자동 감속 로직 포함
@@ -124,7 +124,7 @@ player_daily(appid, date, peak, avg)  -- 롤업
 ```
 
 ### 4-3. 서빙
-- 페이지는 DB를 조회하는 서버 컴포넌트 + ISR(`revalidate: 1800~3600`).
+- 페이지는 DB를 조회하는 서버 컴포넌트 + ISR(`revalidate: 1800~3600`). 홈은 통화 쿠키 때문에 force-dynamic이므로 DB 읽기는 데이터 레이어 `unstable_cache`(`src/lib/data/index.ts`)로 감싼다 — 스냅샷·추이·상세 30분, 장르·추적 목록 1시간 (2026-11: 5분 → 30분, 방문자 트래픽의 Neon 깨움 억제). 캐시를 수집 주기보다 짧게 두지 않는다.
 - 랭킹/장르 목록 쿼리는 인덱스 설계 필수: `player_snapshots(ts)`, `apps(tier, last_seen_rank)`.
 
 ### 4-4. i18n — 구조는 지금, 오픈은 신호 후
@@ -172,7 +172,7 @@ player_daily(appid, date, peak, avg)  -- 롤업
 
 **Launch 슬라이스 = ko 로케일 + Tier 1·2 (Top ~1,000) + 버블맵 + 상세 페이지 + 캡처/OG.** 해자 3종(ko SEO, 히스토리, 공유 포맷)이 전부 여기 있다. 아래 Phase 1~5가 Launch이며, 각 Phase 완료 시마다 프로덕션 배포한다.
 
-- **Phase 1 — 기반**: Next.js + next-intl 구조(오픈은 ko만) + Neon/Drizzle 스키마 + QStash 크론 파이프라인(Tier 1 수집 + job_runs + 데드맨스위치). 완료 기준: top 100 스냅샷 10분 주기 자동 적재 + 수집 중단 시 Discord 알림 수신 확인.
+- **Phase 1 — 기반**: Next.js + next-intl 구조(오픈은 ko만) + Neon/Drizzle 스키마 + QStash 크론 파이프라인(Tier 1 수집 + job_runs + 데드맨스위치). 완료 기준: top 100 스냅샷 30분 주기 자동 적재 + 수집 중단 시 Discord 알림 수신 확인.
 - **Phase 2 — 버블맵 + 랭킹 테이블**: 5-1(cryptobubbles 문법), 5-2. 완료 기준: 버블맵(색상 폴백 모드)·상세 모달·범위/장르/기간 필터·검색·즐겨찾기·통화 전환 동작, 300 노드 상시 애니메이션 데스크톱 60fps / 중급 모바일 30fps 이상. **→ 이 시점에 바이럴 테스트 1회 (캡처 이미지 커뮤니티 게시)**
 - **Phase 3 — Tier 2 수집**: 유니버스 구축 + Tier 2 폴링 + 재배정 잡 + 롤업/보존 잡. `GetGamesByConcurrentPlayers` 실테스트 결과를 이 문서에 기록할 것.
 - **Phase 4 — 상세 페이지 + SEO**: 5-3, ko hreflang·sitemap, 애드센스 신청 준비.

@@ -52,7 +52,7 @@ export async function dbGetBubbleSnapshot(opts: {
   const { period, currency, locale, maxRank } = opts;
   const db = getDb();
   const now = Date.now();
-  // tier1(10분)·tier2(30분)·tier3(3시간)가 서로 다른 ts로 폴링되므로 단일 ts가 아니라
+  // tier1(30분)·tier2(30분)·tier3(3시간)가 서로 다른 ts로 폴링되므로 단일 ts가 아니라
   // 앱별 최신 스냅샷을 취한다. 최근 4시간 내 폴링된 앱만 포함 — tier3 주기(3h)를 커버하고,
   // 유니버스에서 탈락해 폴링이 끊긴 앱은 최대 4시간 안에 자연히 빠진다.
   const RECENCY_MS = 4 * 3_600_000;

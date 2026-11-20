@@ -5,7 +5,7 @@ import { PERIODS, type Currency, type Period } from "@/lib/types";
 
 // 클라이언트 기간/통화 전환용 스냅샷 API — CDN 5분 캐시
 const CACHE_HEADERS = {
-  "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+  "Cache-Control": "public, s-maxage=900, stale-while-revalidate=1800",
 };
 
 function isPeriod(v: string | null): v is Period {

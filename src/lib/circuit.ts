@@ -7,7 +7,7 @@ import type { SteamDomain } from "./fetch-util";
 
 // 도메인별 서킷브레이커 (CLAUDE.md 3) — 상태를 DB에 지속화한다.
 // 서버리스 함수는 인보케이션마다 인스턴스 메모리가 초기화되고, players-tier1은
-// 10분당 api 콜 1번, details는 앱당 실패를 개별 스킵하므로 "인메모리 연속 실패"로는
+// 30분당 api 콜 1번, details는 앱당 실패를 개별 스킵하므로 "인메모리 연속 실패"로는
 // 임계치에 절대 도달하지 못한다. 따라서 QStash 체인·콜드스타트를 가로질러 누적되도록
 // circuit_state 테이블에 실패 카운터와 오픈 시각을 저장한다.
 
